@@ -6,7 +6,7 @@ defmodule Concentrate.Merge.TableTest do
   alias Concentrate.{Merge, TestMergeable}
 
   describe "items/2" do
-    test "keeps items from different sources in order" do
+    test "keeps items from different sources in sorted order" do
       first = TestMergeable.new(:first, 1)
       second = TestMergeable.new(:second, 2)
       other = TestMergeable.new(:other, 3)
@@ -20,10 +20,7 @@ defmodule Concentrate.Merge.TableTest do
 
       actual = items(table)
 
-      assert actual in [
-               [first, second, other],
-               [other, first, second]
-             ]
+      assert actual == [first, other, second]
     end
 
     property "with one source, returns the data" do
@@ -32,7 +29,7 @@ defmodule Concentrate.Merge.TableTest do
         table = new()
         table = add(table, from)
         table = update(table, from, mergeables)
-        assert items(table) == mergeables
+        assert items(table) == Enum.sort_by(mergeables, & &1.key)
       end
     end
 
@@ -65,7 +62,7 @@ defmodule Concentrate.Merge.TableTest do
         from = :from
         table = new()
         table = add(table, from)
-        expected = List.last(all_mergeables)
+        expected = Enum.sort_by(List.last(all_mergeables), & &1.key)
 
         table =
           Enum.reduce(all_mergeables, table, fn mergeables, table ->

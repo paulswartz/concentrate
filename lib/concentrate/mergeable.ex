@@ -10,6 +10,12 @@ defprotocol Concentrate.Mergeable do
   def key(mergeable)
 
   @doc """
+  Returns a key used to sort the items after merging.
+  """
+  @spec sort_key(mergeable) :: term when mergeable: struct
+  def sort_key(mergeable)
+
+  @doc """
   Merges two items into a list of items.
   """
   @spec merge(mergeable, mergeable) :: mergeable

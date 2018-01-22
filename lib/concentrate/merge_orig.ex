@@ -1,4 +1,4 @@
-defmodule Concentrate.Merge do
+defmodule Concentrate.MergeOriginal do
   @moduledoc """
   Merges a list of Concentrate.Mergeable items.
   """
@@ -38,7 +38,7 @@ defmodule Concentrate.Merge do
         %{acc | key => {existing_index, module.merge(existing, item)}}
 
       acc ->
-        Map.put(acc, key, {module.sort_key(item), item})
+        Map.put(acc, key, {map_size(acc), item})
     end
   end
 end

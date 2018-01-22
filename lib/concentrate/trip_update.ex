@@ -21,6 +21,8 @@ defmodule Concentrate.TripUpdate do
   defimpl Concentrate.Mergeable do
     def key(%{trip_id: trip_id}), do: trip_id
 
+    def sort_key(_), do: 0
+
     def merge(first, second) do
       %{
         first

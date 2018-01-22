@@ -1,4 +1,4 @@
-defmodule Concentrate.Merge do
+defmodule Concentrate.MergeProto do
   @moduledoc """
   Merges a list of Concentrate.Mergeable items.
   """
@@ -25,20 +25,13 @@ defmodule Concentrate.Merge do
     items
     |> Enum.reduce(%{}, &merge_item/2)
     |> Map.values()
-    |> Enum.sort()
-    |> Enum.map(&elem(&1, 1))
+    |> Enum.sort_by(&Mergeable.sort_key/1)
   end
 
   defp merge_item(item, acc) do
     module = Mergeable.impl_for!(item)
     key = {module, module.key(item)}
 
-    case acc do
-      %{^key => {existing_index, existing}} ->
-        %{acc | key => {existing_index, module.merge(existing, item)}}
-
-      acc ->
-        Map.put(acc, key, {module.sort_key(item), item})
-    end
+    Map.update(acc, key, item, &module.merge(&1, item))
   end
 end

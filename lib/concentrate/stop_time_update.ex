@@ -28,6 +28,8 @@ defmodule Concentrate.StopTimeUpdate do
       {trip_id, stop_id, stop_sequence}
     end
 
+    def sort_key(_), do: 3
+
     def merge(first, second) do
       %{
         first

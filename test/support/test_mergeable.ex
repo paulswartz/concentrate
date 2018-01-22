@@ -29,6 +29,8 @@ defmodule Concentrate.TestMergeable do
   defimpl Concentrate.Mergeable do
     def key(%{key: key}), do: key
 
+    def sort_key(m), do: key(m)
+
     def merge(first, second) do
       value =
         [first.value, second.value]

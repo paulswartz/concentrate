@@ -58,8 +58,8 @@ defmodule Concentrate.MergeTest do
 
     test "can handle multiple types of Mergeable" do
       expected = [
-        TestMergeable.new("trip", 0),
-        TripUpdate.new(trip_id: "trip")
+        TripUpdate.new(trip_id: "trip"),
+        TestMergeable.new("trip", 0)
       ]
 
       actual = merge(expected)
@@ -77,10 +77,11 @@ defmodule Concentrate.MergeTest do
       assert actual == expected
     end
 
-    property "keys always appear in the original order" do
+    property "keys always appear in the sorted order" do
       check all mergeables <- TestMergeable.mergeables() do
         expected =
           mergeables
+          |> Enum.sort_by(& &1.key)
           |> Enum.map(& &1.key)
           |> Enum.uniq()
 
