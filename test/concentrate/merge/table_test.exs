@@ -3,7 +3,7 @@ defmodule Concentrate.Merge.TableTest do
   use ExUnit.Case, async: true
   use ExUnitProperties
   import Concentrate.Merge.Table
-  alias Concentrate.{Merge, TestMergeable}
+  alias Concentrate.{Merge, Mergeable, TestMergeable}
 
   describe "items/2" do
     property "with one source, returns the data" do
@@ -45,7 +45,14 @@ defmodule Concentrate.Merge.TableTest do
         from = :from
         table = new()
         table = add(table, from)
-        expected = List.last(all_mergeables)
+        # we only want the keys from from last item, but we want to have
+        # merged in all the data from the previously received mergeables. we
+        # get the keys from the last mergeable, merge everything together,
+        # then filter the merged data to only the original keys.
+        last = List.last(all_mergeables)
+        expected_keys = MapSet.new(last, &Mergeable.key/1)
+        all_merged = Enum.reduce(all_mergeables, [], &Merge.merge(Enum.concat(&1, &2)))
+        expected = Enum.filter(all_merged, &(Mergeable.key(&1) in expected_keys))
 
         table =
           Enum.reduce(all_mergeables, table, fn mergeables, table ->

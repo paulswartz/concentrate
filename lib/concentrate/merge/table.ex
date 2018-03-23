@@ -23,10 +23,19 @@ defmodule Concentrate.Merge.Table do
   end
 
   def update(%{data: data} = table, source_name, items) do
+    existing_source = Map.get(data, source_name, %{})
+
     item_list =
       Map.new(items, fn item ->
         module = Mergeable.impl_for!(item)
         key = {module, module.key(item)}
+        # merge an existing item from the previous table
+        item =
+          case existing_source do
+            %{^key => existing_item} -> module.merge(existing_item, item)
+            _ -> item
+          end
+
         {key, item}
       end)
 
