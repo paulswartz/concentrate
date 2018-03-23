@@ -28,6 +28,7 @@ defmodule Concentrate.VehiclePosition do
   end
 
   defimpl Concentrate.Mergeable do
+    alias Concentrate.VehiclePosition
     def key(%{id: id}), do: id
 
     @doc """
@@ -42,11 +43,34 @@ defmodule Concentrate.VehiclePosition do
     end
 
     def merge(first, second) do
-      if first.last_updated < second.last_updated do
-        second
+      {first, second} = in_order(first, second)
+      {stop_id, stop_sequence, status} = stop_sequence_status(first, second)
+
+      VehiclePosition.update(second, %{
+        stop_id: stop_id,
+        stop_sequence: stop_sequence,
+        status: status
+      })
+    end
+
+    defp in_order(%{last_updated: flu} = first, %{last_updated: slu} = second) when flu <= slu do
+      {first, second}
+    end
+
+    defp in_order(first, second) do
+      {second, first}
+    end
+
+    defp stop_sequence_status(%{trip_id: trip_id} = first, %{trip_id: trip_id} = second) do
+      if second.stop_sequence < first.stop_sequence do
+        {first.stop_id, first.stop_sequence, first.status}
       else
-        first
+        {second.stop_id, second.stop_sequence, second.status}
       end
+    end
+
+    defp stop_sequence_status(_first, second) do
+      {second.stop_id, second.stop_sequence, second.status}
     end
   end
 end
