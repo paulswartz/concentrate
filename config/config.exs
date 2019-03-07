@@ -59,6 +59,6 @@ config :concentrate,
   file_tap: [
     enabled?: false
   ],
-  http_producer: Concentrate.Producer.HTTPoison
+  http_producer: Concentrate.Producer.Hackney
 
 import_config "#{Mix.env()}.exs"
