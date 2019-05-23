@@ -64,8 +64,6 @@ defmodule Concentrate.MixProject do
       {:gen_stage, "~> 0.13 and != 0.13.1"},
       {:gpb, "~> 4.7", only: :dev, runtime: false},
       {:httpoison, "~> 1.0"},
-      {:mint, "~> 0.1"},
-      {:castore, "~> 0.1"},
       {:gun, "~> 1.3"},
       {:cowlib, "~> 2.7", override: true},
       {:jason, "~> 1.0"},
