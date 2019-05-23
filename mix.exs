@@ -66,6 +66,8 @@ defmodule Concentrate.MixProject do
       {:httpoison, "~> 1.0"},
       {:mint, "~> 0.1"},
       {:castore, "~> 0.1"},
+      {:gun, "~> 1.3"},
+      {:cowlib, "~> 2.7", override: true},
       {:jason, "~> 1.0"},
       {:stream_data, "~> 0.4", only: :test}
     ]
