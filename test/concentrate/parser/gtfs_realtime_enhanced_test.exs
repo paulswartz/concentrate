@@ -265,6 +265,17 @@ defmodule Concentrate.Parser.GTFSRealtimeEnhancedTest do
       [td] = decode_trip_update(map, Helpers.parse_options([]))
       assert TripDescriptor.vehicle_id(td) == "vehicle_id"
     end
+
+    test "can handle missing stop time updates" do
+      map = %{
+        "trip" => %{
+          "trip_id" => "trip"
+        }
+      }
+
+      [td] = decode_trip_update(map, Helpers.parse_options([]))
+      assert TripDescriptor.trip_id(td) == "trip"
+    end
   end
 
   describe "decode_vehicle/3" do

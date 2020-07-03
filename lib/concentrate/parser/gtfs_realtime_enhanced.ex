@@ -113,7 +113,7 @@ defmodule Concentrate.Parser.GTFSRealtimeEnhanced do
     end
   end
 
-  defp decode_stop_updates(td, %{"stop_time_update" => []}, options) do
+  defp decode_stop_updates(td, _, options) do
     if td != [] and not Helpers.valid_route_id?(options, TripDescriptor.route_id(List.first(td))) do
       []
     else
