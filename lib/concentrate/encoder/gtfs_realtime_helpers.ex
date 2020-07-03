@@ -29,6 +29,7 @@ defmodule Concentrate.Encoder.GTFSRealtimeHelpers do
         end
 
       {td, vps, stus} ->
+        vps = Enum.sort_by(vps, &VehiclePosition.id/1)
         stus = Enum.sort_by(stus, &StopTimeUpdate.stop_sequence/1)
         [{td, vps, stus}]
     end)
