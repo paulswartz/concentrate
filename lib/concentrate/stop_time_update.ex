@@ -37,6 +37,8 @@ defmodule Concentrate.StopTimeUpdate do
   defimpl Concentrate.Mergeable do
     def key(%{trip_id: trip_id, stop_sequence: stop_sequence}), do: {trip_id, stop_sequence}
 
+    def group_key(%{trip_id: trip_id}), do: trip_id
+
     def merge(first, second) do
       %{
         first
