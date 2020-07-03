@@ -140,6 +140,7 @@ defmodule Concentrate.MergeFilterTest do
       refute log == ""
     end
 
+    @tag timeout: :infinity
     property "with multiple sources, returns the merged data" do
       check all(multi_source_mergeables <- list_of_mergeables()) do
         {_, state, _} = init([])
