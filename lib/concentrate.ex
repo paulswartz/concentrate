@@ -1,6 +1,6 @@
 defmodule Concentrate do
   @moduledoc """
-  Application entry point for Concentrate
+  Application entry point for Concentrate.
   """
   use Application
 
