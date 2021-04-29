@@ -1,0 +1,29 @@
+name: Dialyzer
+description: Run Dialyzer, maintaining a cache of the PLT files
+inputs:
+  cmd-line:
+    description: Additional command line options to pass to `mix dialyzer`
+    default: ""
+  cache-url:
+    description: ACTIONS_CACHE_URL from the source environment
+    required: true
+  cache-token:
+    description: ACTIONS_RUNTIME_TOKEN from the source environment
+    required: true
+runs:
+  using: composite
+  steps:
+    - run: elixir -r ${{ github.action_path }}/cache_keys.exs # sets up environment
+      shell: bash
+    - run: node ${{ github.action_path }}/dist/restore_cache/index.js
+      shell: bash
+      env:
+        ACTIONS_CACHE_URL: ${{ inputs.cache-url }}
+        ACTIONS_RUNTIME_TOKEN: ${{ inputs.cache-token }}
+    - run: mix dialyzer ${{ inputs.cmd-line }}
+      shell: bash
+    - run: node ${{ github.action_path }}/dist/save_cache/index.js
+      shell: bash
+      env:
+        ACTIONS_CACHE_URL: ${{ inputs.cache-url }}
+        ACTIONS_RUNTIME_TOKEN: ${{ inputs.cache-token }}

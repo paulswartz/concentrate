@@ -1,0 +1,11 @@
+{
+  "scripts": {
+    "build": "ncc build src/restore_cache.js -o dist/restore_cache && ncc build src/save_cache.js -o dist/save_cache"
+  },
+  "dependencies": {
+    "@actions/cache": "^1.0.7"
+  },
+  "devDependencies": {
+    "@vercel/ncc": "^0.28.4"
+  }
+}

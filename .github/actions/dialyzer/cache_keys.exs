@@ -1,0 +1,5 @@
+github_env = File.open!(System.get_env("GITHUB_ENV"), [:append])
+IO.puts(github_env, ['CACHE_KEY=', :erlang.system_info(:system_architecture), '-dialyzer-', System.otp_release(), ?-, System.version()])
+IO.puts(github_env, ['OTP_PREFIX=', :erlang.system_info(:system_architecture), '-dialyzer-', System.otp_release(), ?-])
+IO.puts(github_env, ['SYSTEM_PREFIX=', :erlang.system_info(:system_architecture), '-dialyzer-'])
+:ok = File.close(github_env)

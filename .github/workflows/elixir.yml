@@ -7,17 +7,13 @@ jobs:
 
     name: Build and test
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v2
-    - name: Set up Elixir
-      id: elixir
-      uses: erlef/setup-beam@v1
+    - uses: erlef/setup-beam@v1
       with:
         elixir-version: '1.10.3' # Define the elixir version [required]
         otp-version: '23.0.2' # Define the OTP version [required]
     - name: Restore dependencies cache
-      id: deps-cache
       uses: actions/cache@v2
       with:
         path: deps
@@ -27,32 +23,25 @@ jobs:
       run: mix deps.get
     - name: Check formatting
       run: mix format --check-formatted
-    - name: Credo
-      run: mix credo --strict
     - name: Compile (warnings as errors)
-      env:
-        MIX_ENV: test
       run: mix compile --force --warnings-as-errors
-    - name: Run tests
-      run: mix test --cover
-    - name: Save PR information
-      run: |
-        echo "${{ github.event.pull_request.number }}" > coverage/PR_NUMBER
-        echo "${{ github.event.pull_request.head.sha }}" > coverage/PR_SHA
-      if: github.event.pull_request
-    - name: Upload coverage artifact
-      uses: actions/upload-artifact@v2
-      with:
-        name: elixir-lcov
-        path: coverage/
-    - name: Restore Dialyzer cache
-      id: dialyzer-cache
-      uses: actions/cache@v2
-      with:
-        path: _build/dev/dialyxir*.plt*
-        key: ${{ runner.os }}-dialyxir-${{ steps.elixir.outputs.otp-version }}-${{ steps.elixir.outputs.elixir-version }}-${{ hashFiles('**/mix.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-dialyxir-${{ steps.elixir.outputs.otp-version }}-${{ steps.elixir.outputs.elixir-version }}-
-          ${{ runner.os }}-dialyxir-${{ steps.elixir.outputs.otp-version }}-
+    # - name: Credo
+    #   run: mix credo --strict
+    # - name: Run tests
+    #   run: mix test --cover
+    # - name: Save PR information
+    #   run: |
+    #     echo "${{ github.event.pull_request.number }}" > coverage/PR_NUMBER
+    #     echo "${{ github.event.pull_request.head.sha }}" > coverage/PR_SHA
+    #   if: github.event.pull_request
+    # - name: Upload coverage artifact
+    #   uses: actions/upload-artifact@v2
+    #   with:
+    #     name: elixir-lcov
+    #     path: coverage/
     - name: Dialyzer
-      run: mix dialyzer --halt-exit-status
+      uses: ./.github/actions/dialyzer
+      with:
+        cmd-line: --halt-exit-status
+        cache-url: ${{ env.ACTIONS_CACHE_URL }}
+        cache-token: ${{ env.ACTIONS_RUNTIME_TOKEN }}
