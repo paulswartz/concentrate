@@ -1,11 +1,15 @@
 {
   "scripts": {
-    "build": "ncc build src/restore_cache.js -o dist/restore_cache && ncc build src/save_cache.js -o dist/save_cache"
+    "build": "prettier --write src/ && ncc build src/main.ts -o dist/main"
   },
   "dependencies": {
-    "@actions/cache": "^1.0.7"
+    "@actions/cache": "^1.0.7",
+    "@actions/core": "^1.2.7",
+    "@actions/exec": "^1.0.4"
   },
   "devDependencies": {
-    "@vercel/ncc": "^0.28.4"
+    "@vercel/ncc": "^0.28.4",
+    "prettier": "2.2.1",
+    "typescript": "^4.2.4"
   }
 }

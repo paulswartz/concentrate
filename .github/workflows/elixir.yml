@@ -43,5 +43,3 @@ jobs:
       uses: ./.github/actions/dialyzer
       with:
         cmd-line: --halt-exit-status
-        cache-url: ${{ env.ACTIONS_CACHE_URL }}
-        cache-token: ${{ env.ACTIONS_RUNTIME_TOKEN }}

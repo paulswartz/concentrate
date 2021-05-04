@@ -417,7 +417,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 const core = __importStar(__nccwpck_require__(2186));
 const exec = __importStar(__nccwpck_require__(1514));
 const glob = __importStar(__nccwpck_require__(8090));
-const io = __importStar(__nccwpck_require__(7436));
+const io = __importStar(__nccwpck_require__(7351));
 const fs = __importStar(__nccwpck_require__(5747));
 const path = __importStar(__nccwpck_require__(5622));
 const semver = __importStar(__nccwpck_require__(5911));
@@ -979,7 +979,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 const exec_1 = __nccwpck_require__(1514);
-const io = __importStar(__nccwpck_require__(7436));
+const io = __importStar(__nccwpck_require__(7351));
 const fs_1 = __nccwpck_require__(5747);
 const path = __importStar(__nccwpck_require__(5622));
 const utils = __importStar(__nccwpck_require__(1518));
@@ -1196,7 +1196,7 @@ exports.getDownloadOptions = getDownloadOptions;
 
 /***/ }),
 
-/***/ 7351:
+/***/ 5241:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
 "use strict";
@@ -1304,7 +1304,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-const command_1 = __nccwpck_require__(7351);
+const command_1 = __nccwpck_require__(5241);
 const file_command_1 = __nccwpck_require__(717);
 const utils_1 = __nccwpck_require__(5278);
 const os = __importStar(__nccwpck_require__(2087));
@@ -1667,7 +1667,7 @@ const os = __importStar(__nccwpck_require__(2087));
 const events = __importStar(__nccwpck_require__(8614));
 const child = __importStar(__nccwpck_require__(3129));
 const path = __importStar(__nccwpck_require__(5622));
-const io = __importStar(__nccwpck_require__(7436));
+const io = __importStar(__nccwpck_require__(7351));
 const ioUtil = __importStar(__nccwpck_require__(1962));
 /* eslint-disable @typescript-eslint/unbound-method */
 const IS_WINDOWS = process.platform === 'win32';
@@ -4114,7 +4114,7 @@ function isUnixExecutable(stats) {
 
 /***/ }),
 
-/***/ 7436:
+/***/ 7351:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
 "use strict";
@@ -59572,20 +59572,213 @@ module.exports = require("zlib");;
 /******/ 	}
 /******/ 	
 /************************************************************************/
+/******/ 	/* webpack/runtime/compat get default export */
+/******/ 	(() => {
+/******/ 		// getDefaultExport function for compatibility with non-harmony modules
+/******/ 		__nccwpck_require__.n = (module) => {
+/******/ 			var getter = module && module.__esModule ?
+/******/ 				() => (module['default']) :
+/******/ 				() => (module);
+/******/ 			__nccwpck_require__.d(getter, { a: getter });
+/******/ 			return getter;
+/******/ 		};
+/******/ 	})();
+/******/ 	
+/******/ 	/* webpack/runtime/define property getters */
+/******/ 	(() => {
+/******/ 		// define getter functions for harmony exports
+/******/ 		__nccwpck_require__.d = (exports, definition) => {
+/******/ 			for(var key in definition) {
+/******/ 				if(__nccwpck_require__.o(definition, key) && !__nccwpck_require__.o(exports, key)) {
+/******/ 					Object.defineProperty(exports, key, { enumerable: true, get: definition[key] });
+/******/ 				}
+/******/ 			}
+/******/ 		};
+/******/ 	})();
+/******/ 	
+/******/ 	/* webpack/runtime/hasOwnProperty shorthand */
+/******/ 	(() => {
+/******/ 		__nccwpck_require__.o = (obj, prop) => (Object.prototype.hasOwnProperty.call(obj, prop))
+/******/ 	})();
+/******/ 	
+/******/ 	/* webpack/runtime/make namespace object */
+/******/ 	(() => {
+/******/ 		// define __esModule on exports
+/******/ 		__nccwpck_require__.r = (exports) => {
+/******/ 			if(typeof Symbol !== 'undefined' && Symbol.toStringTag) {
+/******/ 				Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' });
+/******/ 			}
+/******/ 			Object.defineProperty(exports, '__esModule', { value: true });
+/******/ 		};
+/******/ 	})();
+/******/ 	
 /******/ 	/* webpack/runtime/compat */
 /******/ 	
 /******/ 	if (typeof __nccwpck_require__ !== 'undefined') __nccwpck_require__.ab = __dirname + "/";/************************************************************************/
 var __webpack_exports__ = {};
-// This entry need to be wrapped in an IIFE because it need to be isolated against other modules in the chunk.
+// This entry need to be wrapped in an IIFE because it need to be in strict mode.
 (() => {
-const cache = __nccwpck_require__(7799);
-const paths = ['_build/*/dialyxir*.plt*'];
-const key = process.env.CACHE_KEY;
-const restoreKeys = [
-  process.env.OTP_PREFIX,
-  process.env.SYSTEM_PREFIX
-];
-(async () => await cache.restoreCache(paths, key, restoreKeys))();
+"use strict";
+__nccwpck_require__.r(__webpack_exports__);
+/* harmony import */ var _actions_exec__WEBPACK_IMPORTED_MODULE_0__ = __nccwpck_require__(1514);
+/* harmony import */ var _actions_exec__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__nccwpck_require__.n(_actions_exec__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var _actions_core__WEBPACK_IMPORTED_MODULE_1__ = __nccwpck_require__(2186);
+/* harmony import */ var _actions_core__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__nccwpck_require__.n(_actions_core__WEBPACK_IMPORTED_MODULE_1__);
+/* harmony import */ var _actions_cache__WEBPACK_IMPORTED_MODULE_2__ = __nccwpck_require__(7799);
+/* harmony import */ var _actions_cache__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__nccwpck_require__.n(_actions_cache__WEBPACK_IMPORTED_MODULE_2__);
+/* harmony import */ var _actions_glob__WEBPACK_IMPORTED_MODULE_3__ = __nccwpck_require__(8090);
+/* harmony import */ var _actions_glob__WEBPACK_IMPORTED_MODULE_3___default = /*#__PURE__*/__nccwpck_require__.n(_actions_glob__WEBPACK_IMPORTED_MODULE_3__);
+/* harmony import */ var crypto__WEBPACK_IMPORTED_MODULE_4__ = __nccwpck_require__(6417);
+/* harmony import */ var crypto__WEBPACK_IMPORTED_MODULE_4___default = /*#__PURE__*/__nccwpck_require__.n(crypto__WEBPACK_IMPORTED_MODULE_4__);
+/* harmony import */ var fs__WEBPACK_IMPORTED_MODULE_5__ = __nccwpck_require__(5747);
+/* harmony import */ var fs__WEBPACK_IMPORTED_MODULE_5___default = /*#__PURE__*/__nccwpck_require__.n(fs__WEBPACK_IMPORTED_MODULE_5__);
+/* harmony import */ var stream__WEBPACK_IMPORTED_MODULE_6__ = __nccwpck_require__(2413);
+/* harmony import */ var stream__WEBPACK_IMPORTED_MODULE_6___default = /*#__PURE__*/__nccwpck_require__.n(stream__WEBPACK_IMPORTED_MODULE_6__);
+/* harmony import */ var util__WEBPACK_IMPORTED_MODULE_7__ = __nccwpck_require__(1669);
+/* harmony import */ var util__WEBPACK_IMPORTED_MODULE_7___default = /*#__PURE__*/__nccwpck_require__.n(util__WEBPACK_IMPORTED_MODULE_7__);
+/* harmony import */ var path__WEBPACK_IMPORTED_MODULE_8__ = __nccwpck_require__(5622);
+/* harmony import */ var path__WEBPACK_IMPORTED_MODULE_8___default = /*#__PURE__*/__nccwpck_require__.n(path__WEBPACK_IMPORTED_MODULE_8__);
+var __awaiter = (undefined && undefined.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __asyncValues = (undefined && undefined.__asyncValues) || function (o) {
+    if (!Symbol.asyncIterator) throw new TypeError("Symbol.asyncIterator is not defined.");
+    var m = o[Symbol.asyncIterator], i;
+    return m ? m.call(o) : (o = typeof __values === "function" ? __values(o) : o[Symbol.iterator](), i = {}, verb("next"), verb("throw"), verb("return"), i[Symbol.asyncIterator] = function () { return this; }, i);
+    function verb(n) { i[n] = o[n] && function (v) { return new Promise(function (resolve, reject) { v = o[n](v), settle(resolve, reject, v.done, v.value); }); }; }
+    function settle(resolve, reject, d, v) { Promise.resolve(v).then(function(v) { resolve({ value: v, done: d }); }, reject); }
+};
+/*
+  - run Elixir via @core/exec to get the Elixir and OTP versions
+  - hash mix.lock
+  - restore the cache using OTP/Elixir/hash versions
+  - run mix dialyzer --plt if the cache wasn't found
+  - save the cache after building the PLT
+  - run mix dialyzer $(INPUTS_CMD_LINE)
+ */
+
+
+
+
+
+
+
+
+
+function hashFiles(globPaths) {
+    var e_1, _a;
+    return __awaiter(this, void 0, void 0, function* () {
+        // borrowed from hashFiles implementation in GitHub Actions
+        const globber = yield _actions_glob__WEBPACK_IMPORTED_MODULE_3__.create(globPaths.join("\n"));
+        const githubWorkspace = process.cwd();
+        const result = crypto__WEBPACK_IMPORTED_MODULE_4__.createHash("sha256");
+        try {
+            for (var _b = __asyncValues(globber.globGenerator()), _c; _c = yield _b.next(), !_c.done;) {
+                const file = _c.value;
+                if (!file.startsWith(`${githubWorkspace}${path__WEBPACK_IMPORTED_MODULE_8__.sep}`)) {
+                    continue;
+                }
+                if (fs__WEBPACK_IMPORTED_MODULE_5__.statSync(file).isDirectory()) {
+                    continue;
+                }
+                const hash = crypto__WEBPACK_IMPORTED_MODULE_4__.createHash("sha256");
+                const pipeline = util__WEBPACK_IMPORTED_MODULE_7__.promisify(stream__WEBPACK_IMPORTED_MODULE_6__.pipeline);
+                yield pipeline(fs__WEBPACK_IMPORTED_MODULE_5__.createReadStream(file), hash);
+                result.write(hash.digest());
+            }
+        }
+        catch (e_1_1) { e_1 = { error: e_1_1 }; }
+        finally {
+            try {
+                if (_c && !_c.done && (_a = _b.return)) yield _a.call(_b);
+            }
+            finally { if (e_1) throw e_1.error; }
+        }
+        result.end();
+        return result.digest("hex");
+    });
+}
+const elixirScript = `
+map = %{
+  architecture: IO.iodata_to_binary(:erlang.system_info(:system_architecture)),
+  elixir_version: System.version(),
+  otp_release: System.otp_release(),
+}
+rough_json = map
+|> Enum.map(fn {key, value} -> [?", Atom.to_string(key), '":', inspect(value)] end)
+|> Enum.intersperse(?,)
+IO.puts([?{, rough_json, ?}])
+`;
+function elixirVersions() {
+    return __awaiter(this, void 0, void 0, function* () {
+        const tempDirectory = process.env["RUNNER_TEMP"] || "/tmp";
+        const elixirScriptPath = `${tempDirectory}${path__WEBPACK_IMPORTED_MODULE_8__.sep}elixir_dialyzer_config.exs`;
+        fs__WEBPACK_IMPORTED_MODULE_5__.writeFileSync(elixirScriptPath, elixirScript);
+        let output = "";
+        const options = {
+            silent: true,
+            listeners: {
+                stdout: (data) => {
+                    output += data.toString();
+                },
+            },
+        };
+        try {
+            yield _actions_exec__WEBPACK_IMPORTED_MODULE_0__.exec("elixir", ["-r", elixirScriptPath], options);
+        }
+        finally {
+            fs__WEBPACK_IMPORTED_MODULE_5__.unlinkSync(elixirScriptPath);
+        }
+        const config = JSON.parse(output);
+        return config;
+    });
+}
+function mixDialyzer(args) {
+    return __awaiter(this, void 0, void 0, function* () {
+        return _actions_exec__WEBPACK_IMPORTED_MODULE_0__.exec("mix", ["dialyzer", ...args]);
+    });
+}
+function run() {
+    return __awaiter(this, void 0, void 0, function* () {
+        const { architecture, elixir_version, otp_release } = yield elixirVersions();
+        const mixLockHash = yield hashFiles(["mix.lock", "apps/*/mix.lock"]);
+        const dialyzerPaths = [" _build/dev/*.plt*"];
+        const cacheKey = `${architecture}-dialyzer-${otp_release}-${elixir_version}-${mixLockHash}`;
+        const restoreKeys = [
+            `${architecture}-dialyzer-${otp_release}-${elixir_version}-`,
+            `${architecture}-dialyzer-${otp_release}-`,
+            `${architecture}-dialyzer-`,
+        ];
+        const cacheId = yield _actions_cache__WEBPACK_IMPORTED_MODULE_2__.restoreCache(dialyzerPaths, cacheKey, restoreKeys);
+        if (cacheId) {
+            console.log("Restored cache: ", cacheId);
+        }
+        else {
+            console.log("Unable to restore cache: ", cacheKey);
+        }
+        yield mixDialyzer(["--plt"]);
+        if (cacheId === cacheKey) {
+            console.log("Cache hit, not saving.");
+        }
+        else {
+            try {
+                yield _actions_cache__WEBPACK_IMPORTED_MODULE_2__.saveCache(dialyzerPaths, cacheKey);
+                console.log("Saved cache.");
+            }
+            catch (e) {
+                console.error("Unable to save cache: ", e);
+            }
+        }
+        yield mixDialyzer(_actions_core__WEBPACK_IMPORTED_MODULE_1__.getInput("cmd-line").split(" "));
+    });
+}
+run();
 
 })();
 
