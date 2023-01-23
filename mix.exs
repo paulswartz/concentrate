@@ -70,7 +70,7 @@ defmodule Concentrate.MixProject do
       {:lcov_ex, "~> 0.3.0", only: :test, runtime: false},
       {:gen_stage, "~> 1.0"},
       {:gpb, "~> 4.7", only: :dev, runtime: false, only: :dev},
-      {:httpoison, "~> 1.0"},
+      {:httpoison, "~> 2.0"},
       {:jason, "~> 1.0"},
       {:stream_data, "~> 0.4", only: :test}
     ]
