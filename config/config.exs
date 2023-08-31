@@ -75,6 +75,9 @@ config :concentrate,
     Concentrate.GroupFilter.SkippedStopOnAddedTrip,
     Concentrate.GroupFilter.TripDescriptorTimestamp
   ],
+  source_reporters: [
+    Concentrate.SourceReporter.Latency
+  ],
   reporters: [
     Concentrate.Reporter.VehicleLatency,
     Concentrate.Reporter.StopTimeUpdateLatency,
