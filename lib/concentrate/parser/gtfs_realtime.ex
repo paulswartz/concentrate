@@ -6,17 +6,34 @@ defmodule Concentrate.Parser.GTFSRealtime do
   alias Concentrate.Parser.Helpers
   require Logger
 
-  alias Concentrate.{Alert, Alert.InformedEntity, StopTimeUpdate, TripDescriptor, VehiclePosition}
+  alias Concentrate.{
+    Alert,
+    Alert.InformedEntity,
+    FeedUpdate,
+    StopTimeUpdate,
+    TripDescriptor,
+    VehiclePosition
+  }
+
   @impl Concentrate.Parser
   def parse(binary, opts) when is_binary(binary) and is_list(opts) do
     options = Helpers.parse_options(opts)
     message = :gtfs_realtime_proto.decode_msg(binary, :FeedMessage, [])
 
     feed_timestamp = message.header.timestamp
+    partial? = message.header.incrementality == :DIFFERENTIAL
 
-    message.entity
-    |> Enum.flat_map(&decode_feed_entity(&1, options, feed_timestamp))
-    |> Helpers.drop_fields(options.drop_fields)
+    updates =
+      message.entity
+      |> Enum.flat_map(&decode_feed_entity(&1, options, feed_timestamp))
+      |> Helpers.drop_fields(options.drop_fields)
+
+    FeedUpdate.new(
+      updates: updates,
+      url: Keyword.get(opts, :feed_url),
+      timestamp: feed_timestamp,
+      partial?: partial?
+    )
   end
 
   @spec decode_feed_entity(map(), Helpers.Options.t(), integer | nil) :: [any()]
@@ -75,7 +92,11 @@ defmodule Concentrate.Parser.GTFSRealtime do
             stop_sequence: Map.get(vp, :current_stop_sequence),
             last_updated: timestamp,
             occupancy_status: Map.get(vp, :occupancy_status),
-            occupancy_percentage: Map.get(vp, :occupancy_percentage)
+            occupancy_percentage: Map.get(vp, :occupancy_percentage),
+            multi_carriage_details:
+              VehiclePosition.CarriageDetails.build_multi_carriage_details(
+                Helpers.parse_multi_carriage_details(vp)
+              )
           )
         ]
     else

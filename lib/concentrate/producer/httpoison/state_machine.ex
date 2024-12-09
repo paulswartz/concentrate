@@ -42,6 +42,8 @@ defmodule Concentrate.Producer.HTTPoison.StateMachine do
         Keyword.take(opts, ~w(get_opts fetch_after content_warning_timeout headers)a)
       )
 
+    state = %{state | headers: Concentrate.unwrap_values(state.headers)}
+
     state = %{state | last_success: now() - state.fetch_after - 1}
 
     case Keyword.get(opts, :fallback_url) do
@@ -216,9 +218,7 @@ defmodule Concentrate.Producer.HTTPoison.StateMachine do
   defp handle_message(machine, unknown) do
     _ =
       Logger.error(fn ->
-        "#{__MODULE__}: got unexpected message url=#{inspect(machine.url)} message=#{
-          inspect(unknown)
-        }"
+        "#{__MODULE__}: got unexpected message url=#{inspect(machine.url)} message=#{inspect(unknown)}"
       end)
 
     {machine, [], []}
@@ -293,13 +293,11 @@ defmodule Concentrate.Producer.HTTPoison.StateMachine do
 
     _ =
       Logger.info(fn ->
-        "#{__MODULE__} updated: url=#{inspect(url(machine))} records=#{length(parsed)} time=#{
-          time / 1000
-        }"
+        "#{__MODULE__} updated: url=#{inspect(url(machine))} records=#{Enum.count(parsed)} time=#{time / 1000}"
       end)
 
     machine =
-      if parsed == [] do
+      if Enum.empty?(parsed) do
         # don't log a success if there wasn't any data
         machine
       else
@@ -309,20 +307,18 @@ defmodule Concentrate.Producer.HTTPoison.StateMachine do
     {[parsed], machine}
   rescue
     error ->
-      log_parse_error(error, machine, System.stacktrace())
+      log_parse_error(error, machine, __STACKTRACE__)
       {[], machine}
   catch
     error ->
-      log_parse_error(error, machine, System.stacktrace())
+      log_parse_error(error, machine, __STACKTRACE__)
       {[], machine}
   end
 
   defp log_parse_error(error, machine, trace) do
     _ =
       Logger.error(fn ->
-        "#{__MODULE__}: parse error url=#{inspect(machine.url)} error=#{inspect(error)}\n#{
-          Exception.format_stacktrace(trace)
-        }"
+        "#{__MODULE__}: parse error url=#{inspect(machine.url)} error=#{inspect(error)}\n#{Exception.format_stacktrace(trace)}"
       end)
 
     []
@@ -347,9 +343,7 @@ defmodule Concentrate.Producer.HTTPoison.StateMachine do
   defp activate_fallback(%{fallback: {:not_active, url}} = machine) do
     _ =
       Logger.error(fn ->
-        "#{__MODULE__} activating fallback url=#{inspect(machine.url)} fallback_url=#{
-          inspect(url)
-        }"
+        "#{__MODULE__} activating fallback url=#{inspect(machine.url)} fallback_url=#{inspect(url)}"
       end)
 
     fallback_machine =
@@ -388,11 +382,11 @@ defmodule Concentrate.Producer.HTTPoison.StateMachine do
     [{message, delay} | fallback_messages]
   end
 
-  defp error_log_level(:closed), do: :warn
-  defp error_log_level({:closed, _}), do: :warn
+  defp error_log_level(:closed), do: :warning
+  defp error_log_level({:closed, _}), do: :warning
   defp error_log_level({:ssl_closed, _}), do: :info
-  defp error_log_level(:timeout), do: :warn
-  defp error_log_level({:unexpected_code, _}), do: :warn
+  defp error_log_level(:timeout), do: :warning
+  defp error_log_level({:unexpected_code, _}), do: :warning
   defp error_log_level(_), do: :error
 
   defp now do

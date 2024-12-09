@@ -22,6 +22,43 @@ defmodule Concentrate do
     Enum.flat_map(json, &decode_json_key_value/1)
   end
 
+  @doc """
+  Unwraps a value which is optionally wrapped in a 0-arity function.
+
+  This wrapping is done with environment secrets, to avoid logging them.
+  """
+  def unwrap(value) when is_function(value, 0) do
+    value.()
+  end
+
+  def unwrap(value) do
+    value
+  end
+
+  @doc """
+  Unwraps the values of a keyword list or map.
+  """
+  def unwrap_values(opts) when is_list(opts) do
+    for {key, value} <- opts do
+      {key, unwrap(value)}
+    end
+  end
+
+  def unwrap_values(opts) when is_map(opts) do
+    for {key, value} <- opts, into: %{} do
+      {key, unwrap(value)}
+    end
+  end
+
+  @doc """
+  Returns a Concentrate.Producer for the given URL.
+  """
+  def producer_for_url(url) do
+    %URI{scheme: scheme} = URI.parse(url)
+    scheme_producers = Application.get_env(:concentrate, :scheme_producers)
+    Map.fetch!(scheme_producers, scheme)
+  end
+
   defp decode_json_key_value({"sources", source_object}) do
     realtime = Map.get(source_object, "gtfs_realtime", %{})
     enhanced = Map.get(source_object, "gtfs_realtime_enhanced", %{})
@@ -48,17 +85,12 @@ defmodule Concentrate do
     [gtfs: [url: url]]
   end
 
-  defp decode_json_key_value({"sinks", sinks_object}) do
-    sinks =
-      case sinks_object do
-        %{"s3" => s3_object} ->
-          %{
-            s3: decode_s3(s3_object)
-          }
+  defp decode_json_key_value({"signs_stops_config", %{"url" => url}}) do
+    [signs_stops_config: [url: url]]
+  end
 
-        _ ->
-          %{}
-      end
+  defp decode_json_key_value({"sinks", sinks_object}) do
+    sinks = decode_sinks_object(sinks_object, %{})
 
     [
       sinks: sinks
@@ -69,7 +101,8 @@ defmodule Concentrate do
     level =
       case level_str do
         "error" -> :error
-        "warn" -> :warn
+        "warn" -> :warning
+        "warning" -> :warning
         "info" -> :info
         "debug" -> :debug
       end
@@ -80,7 +113,16 @@ defmodule Concentrate do
 
   defp decode_json_key_value({"file_tap", opts}) do
     if Map.get(opts, "enabled") do
-      [file_tap: [enabled?: true]]
+      sink_opts =
+        case opts do
+          %{"sinks" => sinks} when is_list(sinks) ->
+            [sinks: Enum.map(sinks, &String.to_existing_atom/1)]
+
+          _ ->
+            []
+        end
+
+      [file_tap: [enabled?: true] ++ sink_opts]
     else
       []
     end
@@ -108,6 +150,9 @@ defmodule Concentrate do
             routes: {&is_list/1, & &1},
             excluded_routes: {&is_list/1, & &1},
             fallback_url: {&is_binary/1, & &1},
+            username: {&possible_env_var?/1, &process_possible_env_var/1},
+            password: {&possible_env_var?/1, &process_possible_env_var/1},
+            topics: {&is_list/1, & &1},
             max_future_time: {&is_integer/1, & &1},
             fetch_after: {&is_integer/1, & &1},
             content_warning_timeout: {&is_integer/1, & &1},
@@ -126,18 +171,45 @@ defmodule Concentrate do
     end
   end
 
+  defp decode_sinks_object(%{"s3" => s3_object} = sinks_object, acc) do
+    acc = Map.put(acc, :s3, decode_s3(s3_object))
+
+    sinks_object
+    |> Map.delete("s3")
+    |> decode_sinks_object(acc)
+  end
+
+  defp decode_sinks_object(%{"mqtt" => mqtt_object} = sinks_object, acc) do
+    acc = Map.put(acc, :mqtt, decode_mqtt(mqtt_object))
+
+    sinks_object
+    |> Map.delete("mqtt")
+    |> decode_sinks_object(acc)
+  end
+
+  defp decode_sinks_object(_, acc) do
+    Keyword.new(acc)
+  end
+
+  defp possible_env_var?(value) do
+    case value do
+      %{"system" => _} -> true
+      <<_::binary>> -> true
+      _ -> false
+    end
+  end
+
+  defp process_possible_env_var(%{"system" => env_var}) do
+    fn -> System.get_env(env_var) end
+  end
+
+  defp process_possible_env_var(raw_value) when is_binary(raw_value) do
+    raw_value
+  end
+
   defp process_headers(map) do
     for {key, raw_value} <- map, into: %{} do
-      value =
-        case raw_value do
-          %{"system" => env_var} ->
-            System.get_env(env_var)
-
-          raw_value when is_binary(raw_value) ->
-            raw_value
-        end
-
-      {key, value}
+      {key, process_possible_env_var(raw_value)}
     end
   end
 
@@ -160,6 +232,20 @@ defmodule Concentrate do
           [{key, value} | acc]
 
         _ ->
+          acc
+      end
+    end)
+  end
+
+  defp decode_mqtt(mqtt_object) do
+    keys = ~w(url prefix username password)a
+
+    Enum.reduce(keys, [], fn key, acc ->
+      case Map.fetch(mqtt_object, Atom.to_string(key)) do
+        {:ok, value} ->
+          [{key, process_possible_env_var(value)} | acc]
+
+        :error ->
           acc
       end
     end)

@@ -4,6 +4,9 @@ defmodule Concentrate.Encoder.ProducerConsumer do
   """
   use GenStage
   require Logger
+
+  alias Concentrate.FeedUpdate
+
   @start_link_opts [:name]
 
   def start_link(opts) do
@@ -18,7 +21,7 @@ defmodule Concentrate.Encoder.ProducerConsumer do
 
     state =
       for {filename, encoder} <- files do
-        {filename, &encoder.encode_groups/1}
+        {filename, &encoder.encode_groups/2}
       end
 
     {:producer_consumer, state, opts}
@@ -26,18 +29,26 @@ defmodule Concentrate.Encoder.ProducerConsumer do
 
   @impl GenStage
   def handle_events(events, _from, state) do
-    data = List.last(events)
+    update = List.last(events)
 
     responses =
       for {filename, encoder} <- state do
-        {time, encoded} = :timer.tc(encoder, [data])
+        {time, encoded} =
+          :timer.tc(encoder, [
+            FeedUpdate.updates(update),
+            [timestamp: FeedUpdate.timestamp(update), partial?: FeedUpdate.partial?(update)]
+          ])
 
         _ =
           Logger.debug(fn ->
-            "#{__MODULE__} encoded filename=#{inspect(filename)} time=#{time / 1000}"
+            "#{__MODULE__} encoded filename=#{inspect(filename)} time=#{time / 1000} partial?=#{FeedUpdate.partial?(update)}"
           end)
 
-        {filename, encoded}
+        if FeedUpdate.partial?(update) do
+          {filename, encoded, partial?: true}
+        else
+          {filename, encoded}
+        end
       end
 
     {:noreply, responses, state, :hibernate}

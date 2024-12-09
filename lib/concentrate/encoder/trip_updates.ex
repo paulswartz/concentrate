@@ -7,9 +7,11 @@ defmodule Concentrate.Encoder.TripUpdates do
   import Concentrate.Encoder.GTFSRealtimeHelpers
 
   @impl Concentrate.Encoder
-  def encode_groups(groups) when is_list(groups) do
+  def encode_groups(groups, opts \\ []) when is_list(groups) do
+    groups = Enum.reject(groups, &non_revenue?/1)
+
     message = %{
-      header: feed_header(),
+      header: feed_header(opts),
       entity: trip_update_feed_entity(groups, &build_stop_time_update/1)
     }
 
@@ -25,7 +27,8 @@ defmodule Concentrate.Encoder.TripUpdates do
 
     relationship = schedule_relationship(StopTimeUpdate.schedule_relationship(update))
 
-    if is_map(arrival) or is_map(departure) or relationship != nil do
+    if (is_map(arrival) or is_map(departure) or relationship != nil) and
+         StopTimeUpdate.passthrough_time(update) == nil do
       drop_nil_values(%{
         stop_id: StopTimeUpdate.stop_id(update),
         stop_sequence: StopTimeUpdate.stop_sequence(update),

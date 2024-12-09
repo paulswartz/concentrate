@@ -18,10 +18,6 @@ defmodule Concentrate.Producer.HTTPoisonTest do
   setup_all do
     {:ok, _} = Application.ensure_all_started(:hackney)
 
-    on_exit(fn ->
-      Application.stop(:hackney)
-    end)
-
     {:ok, _} =
       start_supervised(%{
         id: :hackney_pool,
@@ -106,6 +102,26 @@ defmodule Concentrate.Producer.HTTPoisonTest do
 
       {:ok, producer} = start_producer(bypass)
       assert take_events(producer, 1) == [["body"]]
+    end
+
+    test "can send headers", %{bypass: bypass} do
+      Bypass.expect_once(bypass, fn conn ->
+        assert get_req_header(conn, "x-header") == ["value"]
+        send_resp(conn, 200, "body")
+      end)
+
+      {:ok, producer} = start_producer(bypass, headers: %{"x-header" => "value"})
+      assert [[_]] = take_events(producer, 1)
+    end
+
+    test "can send headers wrapped in a function", %{bypass: bypass} do
+      Bypass.expect_once(bypass, fn conn ->
+        assert get_req_header(conn, "x-header") == ["secret"]
+        send_resp(conn, 200, "body")
+      end)
+
+      {:ok, producer} = start_producer(bypass, headers: %{"x-header" => fn -> "secret" end})
+      assert [[_]] = take_events(producer, 1)
     end
 
     test "schedules a fetch again", %{bypass: bypass} do

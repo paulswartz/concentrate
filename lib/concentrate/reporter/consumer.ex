@@ -24,12 +24,9 @@ defmodule Concentrate.Reporter.Consumer do
     _ =
       if output != [] do
         Logger.info(fn ->
-          report =
-            output
-            |> Enum.map(&log_item/1)
-            |> Enum.join(" ")
+          report = Enum.map_join(output, " ", &log_item/1)
 
-          "#{module} report: #{report}"
+          "report=#{module} #{report}"
         end)
       end
 

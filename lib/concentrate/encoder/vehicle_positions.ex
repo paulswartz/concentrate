@@ -7,9 +7,11 @@ defmodule Concentrate.Encoder.VehiclePositions do
   import Concentrate.Encoder.GTFSRealtimeHelpers
 
   @impl Concentrate.Encoder
-  def encode_groups(groups) when is_list(groups) do
+  def encode_groups(groups, opts \\ []) when is_list(groups) do
+    groups = Enum.reject(groups, &non_revenue?/1)
+
     message = %{
-      header: feed_header(),
+      header: feed_header(opts),
       entity: Enum.flat_map(groups, &build_entity/1)
     }
 
@@ -73,10 +75,11 @@ defmodule Concentrate.Encoder.VehiclePositions do
       position: position,
       stop_id: VehiclePosition.stop_id(vp),
       current_stop_sequence: VehiclePosition.stop_sequence(vp),
-      current_status: VehiclePosition.status(vp),
-      timestamp: VehiclePosition.last_updated(vp),
+      current_status: VehiclePosition.status(vp) || :IN_TRANSIT_TO,
+      timestamp: VehiclePosition.last_updated_truncated(vp),
       occupancy_status: VehiclePosition.occupancy_status(vp),
-      occupancy_percentage: VehiclePosition.occupancy_percentage(vp)
+      occupancy_percentage: VehiclePosition.occupancy_percentage(vp),
+      multi_carriage_details: VehiclePosition.multi_carriage_details(vp)
     })
   end
 

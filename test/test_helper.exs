@@ -1,2 +1,3 @@
 Application.ensure_all_started(:stream_data)
-ExUnit.start()
+Application.ensure_all_started(:tzdata)
+ExUnit.start(capture_log: true)

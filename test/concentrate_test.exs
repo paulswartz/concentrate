@@ -67,10 +67,19 @@ defmodule ConcentrateTest do
       "bucket": "s3-bucket",
       "prefix": "bucket_prefix",
       "ignored": "value"
+    },
+    "mqtt": {
+      "url": "mqtt://localhost",
+      "prefix": "topic/",
+      "username": "user",
+      "password": {
+        "system": "USER"
+      }
     }
   },
   "file_tap": {
-    "enabled": true
+    "enabled": true,
+    "sinks": ["s3"]
   }
 }
       )
@@ -92,10 +101,22 @@ defmodule ConcentrateTest do
 
       assert config[:gtfs][:url] == "gtfs_url"
       assert config[:alerts][:url] == "alerts_url"
+      assert is_list(config[:sinks])
+      assert is_list(config[:sinks][:s3])
       assert config[:sinks][:s3][:bucket] == "s3-bucket"
       assert config[:sinks][:s3][:prefix] == "bucket_prefix"
-      assert is_list(config[:sinks][:s3])
+
+      assert is_list(config[:sinks][:mqtt])
+
+      assert config[:sinks][:mqtt][:password].() == System.get_env("USER") ||
+               raise("USER NOT SET")
+
+      assert config[:sinks][:mqtt][:prefix] == "topic/"
+      assert config[:sinks][:mqtt][:url] == "mqtt://localhost"
+      assert config[:sinks][:mqtt][:username] == "user"
+
       assert config[:file_tap][:enabled?]
+      assert config[:file_tap][:sinks] == [:s3]
     end
 
     test "missing keys aren't configured" do
@@ -108,7 +129,7 @@ defmodule ConcentrateTest do
       assert config[:sources][:gtfs_realtime] == %{}
       assert config[:sources][:gtfs_realtime_enhanced] == %{}
       assert config[:gtfs] == nil
-      assert config[:sinks] == %{}
+      assert config[:sinks] == []
     end
 
     test "gtfs_realtime sources can have additional route configuration" do
@@ -156,6 +177,8 @@ defmodule ConcentrateTest do
     "gtfs_realtime": {
       "name_1": {
         "url": "url_1",
+        "username": {"system": "#{env_var}"},
+        "password": {"system": "#{env_var}"},
         "headers": {
           "Authorization": {"system": "#{env_var}"}
         }
@@ -169,8 +192,16 @@ defmodule ConcentrateTest do
       try do
         config = parse_json_configuration(body)
 
-        assert config[:sources][:gtfs_realtime][:name_1] ==
-                 {"url_1", [headers: %{"Authorization" => "secret_key"}]}
+        assert {"url_1",
+                [
+                  username: username,
+                  password: password,
+                  headers: %{"Authorization" => authorization}
+                ]} = config[:sources][:gtfs_realtime][:name_1]
+
+        assert username.() == env_var_value
+        assert password.() == env_var_value
+        assert authorization.() == env_var_value
       after
         System.delete_env(env_var)
       end

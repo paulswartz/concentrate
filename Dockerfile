@@ -1,4 +1,7 @@
-FROM hexpm/elixir:1.10.3-erlang-23.0.2-alpine-3.11.6 AS builder
+ARG ELIXIR_VERSION=1.17.1
+ARG ERLANG_VERSION=27.0
+ARG ALPINE_VERSION=3.20.0
+FROM hexpm/elixir:$ELIXIR_VERSION-erlang-$ERLANG_VERSION-alpine-$ALPINE_VERSION AS builder
 
 WORKDIR /root
 
@@ -22,9 +25,10 @@ ADD src /root/src
 RUN mix do compile, release
 
 # Second stage: copies the files from the builder stage
-FROM alpine:3.11.6
+FROM alpine:$ALPINE_VERSION
 
-RUN apk add --update libssl1.1 ncurses-libs bash dumb-init \
+RUN apk add --update libcrypto3 ncurses-libs bash dumb-init libstdc++ \
+    && apk upgrade \
     && rm -rf /var/cache/apk
 
 # Set environment

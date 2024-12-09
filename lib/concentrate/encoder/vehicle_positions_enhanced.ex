@@ -1,6 +1,6 @@
 defmodule Concentrate.Encoder.VehiclePositionsEnhanced do
   @moduledoc """
-  Encodes a list of parsed data into a VehiclePositions.pb file.
+  Encodes a list of parsed data into a VehiclePositions_enhanced.json file.
   """
   @behaviour Concentrate.Encoder
   alias Concentrate.{TripDescriptor, VehiclePosition}
@@ -9,17 +9,30 @@ defmodule Concentrate.Encoder.VehiclePositionsEnhanced do
   import Concentrate.Encoder.VehiclePositions, only: [entity_id: 1, trip_descriptor: 1]
 
   @impl Concentrate.Encoder
-  def encode_groups(groups) when is_list(groups) do
+  def encode_groups(groups, opts \\ []) when is_list(groups) do
     message = %{
-      "header" => feed_header(),
-      "entity" => Enum.flat_map(groups, &build_entity/1)
+      "header" => feed_header(opts),
+      "entity" => Enum.flat_map(groups, fn group -> build_entity(group, &enhanced_data/1) end)
     }
 
     Jason.encode!(message)
   end
 
-  def build_entity({%TripDescriptor{} = td, vps, _stus}) do
-    trip = trip_descriptor(td)
+  defp enhanced_data(update) do
+    %{
+      last_trip: TripDescriptor.last_trip(update)
+    }
+  end
+
+  def build_entity(_, enhanced_data \\ fn _ -> %{} end)
+
+  def build_entity({%TripDescriptor{} = td, vps, _stus}, enhanced_data_fn) do
+    trip =
+      td
+      |> trip_descriptor()
+      |> Map.put("revenue", TripDescriptor.revenue(td))
+      |> Map.merge(enhanced_data_fn.(td))
+      |> drop_nil_values()
 
     for vp <- vps do
       %{
@@ -29,7 +42,7 @@ defmodule Concentrate.Encoder.VehiclePositionsEnhanced do
     end
   end
 
-  def build_entity({nil, vps, _stus}) do
+  def build_entity({nil, vps, _stus}, _enhanced_data_fn) do
     # vehicles without a trip
     for vp <- vps,
         trip_id = VehiclePosition.trip_id(vp),
@@ -69,10 +82,11 @@ defmodule Concentrate.Encoder.VehiclePositionsEnhanced do
       "position" => position,
       "stop_id" => VehiclePosition.stop_id(vp),
       "current_stop_sequence" => VehiclePosition.stop_sequence(vp),
-      "current_status" => VehiclePosition.status(vp),
-      "timestamp" => VehiclePosition.last_updated(vp),
+      "current_status" => VehiclePosition.status(vp) || "IN_TRANSIT_TO",
+      "timestamp" => VehiclePosition.last_updated_truncated(vp),
       "occupancy_status" => VehiclePosition.occupancy_status(vp),
-      "occupancy_percentage" => VehiclePosition.occupancy_percentage(vp)
+      "occupancy_percentage" => VehiclePosition.occupancy_percentage(vp),
+      "multi_carriage_details" => VehiclePosition.multi_carriage_details(vp)
     })
   end
 

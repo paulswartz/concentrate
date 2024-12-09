@@ -2,7 +2,7 @@ defmodule Concentrate.Filter.SkippedStopOnAddedTripTest do
   @moduledoc false
   use ExUnit.Case, async: true
   import Concentrate.GroupFilter.SkippedStopOnAddedTrip
-  alias Concentrate.{TripDescriptor, StopTimeUpdate}
+  alias Concentrate.{StopTimeUpdate, TripDescriptor}
 
   @trip_id "trip"
 
@@ -28,6 +28,32 @@ defmodule Concentrate.Filter.SkippedStopOnAddedTripTest do
     test "keeps normal updates from ADDED trips" do
       td = TripDescriptor.new(trip_id: @trip_id, schedule_relationship: :ADDED)
       stu = StopTimeUpdate.new(trip_id: @trip_id)
+      assert {^td, [], [^stu]} = filter({td, [], [stu]})
+    end
+
+    test "keeps stus with passthough_times from ADDED trips" do
+      td = TripDescriptor.new(trip_id: @trip_id, schedule_relationship: :ADDED)
+
+      stu =
+        StopTimeUpdate.new(
+          trip_id: @trip_id,
+          schedule_relationship: :SKIPPED,
+          passthrough_time: 500
+        )
+
+      assert {^td, [], [^stu]} = filter({td, [], [stu]})
+    end
+
+    test "keeps stus with passthough_times from UNSCHEDULED trips" do
+      td = TripDescriptor.new(trip_id: @trip_id, schedule_relationship: :UNSCHEDULED)
+
+      stu =
+        StopTimeUpdate.new(
+          trip_id: @trip_id,
+          schedule_relationship: :SKIPPED,
+          passthrough_time: 500
+        )
+
       assert {^td, [], [^stu]} = filter({td, [], [stu]})
     end
 

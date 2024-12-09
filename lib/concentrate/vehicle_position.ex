@@ -20,7 +20,8 @@ defmodule Concentrate.VehiclePosition do
     :consist,
     :occupancy_status,
     :occupancy_percentage,
-    status: :IN_TRANSIT_TO
+    :multi_carriage_details,
+    :status
   ])
 
   defmodule Consist do
@@ -41,8 +42,24 @@ defmodule Concentrate.VehiclePosition do
     super(opts)
   end
 
+  def last_updated_truncated(%__MODULE__{last_updated: number}) when is_integer(number) do
+    number
+  end
+
+  def last_updated_truncated(%__MODULE__{last_updated: number}) when is_float(number) do
+    trunc(number)
+  end
+
+  def last_updated_truncated(%__MODULE__{last_updated: nil}) do
+    nil
+  end
+
   defimpl Concentrate.Mergeable do
     def key(%{id: id}), do: id
+
+    def related_keys(%{trip_id: trip_id}) do
+      [{Concentrate.TripDescriptor, trip_id}]
+    end
 
     @doc """
     Merging VehiclePositions takes the latest position for a given vehicle.
@@ -75,10 +92,13 @@ defmodule Concentrate.VehiclePosition do
           bearing: first_value(second.bearing, first.bearing),
           speed: first_value(second.speed, first.speed),
           odometer: first_value(second.odometer, first.odometer),
+          status: first_value(second.status, first.status),
           stop_sequence: first_value(second.stop_sequence, first.stop_sequence),
           occupancy_status: first_value(second.occupancy_status, first.occupancy_status),
           occupancy_percentage:
             first_value(second.occupancy_percentage, first.occupancy_percentage),
+          multi_carriage_details:
+            first_value(second.multi_carriage_details, first.multi_carriage_details),
           consist: first_list_value(second.consist, first.consist)
       }
     end

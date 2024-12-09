@@ -104,7 +104,7 @@ defmodule Concentrate.Parser.Helpers do
   end
 
   def valid_route_id?(%{excluded_routes: {:ok, route_ids}}, route_id) do
-    not (route_id in route_ids)
+    route_id not in route_ids
   end
 
   def valid_route_id?(_, _) do
@@ -140,12 +140,8 @@ defmodule Concentrate.Parser.Helpers do
       when is_integer(vehicle_timestamp) and is_integer(feed_timestamp) and
              vehicle_timestamp > feed_timestamp do
     _ =
-      Logger.warn(
-        "vehicle timestamp after feed timestamp feed_url=#{inspect(options.feed_url)} vehicle_id=#{
-          inspect(vehicle_id)
-        } feed_timestamp=#{inspect(feed_timestamp)} vehicle_timestamp=#{
-          inspect(vehicle_timestamp)
-        }"
+      Logger.warning(
+        "vehicle timestamp after feed timestamp feed_url=#{inspect(options.feed_url)} vehicle_id=#{inspect(vehicle_id)} feed_timestamp=#{inspect(feed_timestamp)} vehicle_timestamp=#{inspect(vehicle_timestamp)}"
       )
 
     :ok
@@ -154,4 +150,20 @@ defmodule Concentrate.Parser.Helpers do
   def log_future_vehicle_timestamp(_options, _feed_timestamp, _vehicle_timestamp, _vehicle_id) do
     :ok
   end
+
+  @doc """
+  Properly handle empty and non-empty multi_carriage_details messages
+  """
+  @spec parse_multi_carriage_details(any) :: any
+  def parse_multi_carriage_details(%{multi_carriage_details: []} = _input), do: nil
+
+  def parse_multi_carriage_details(%{multi_carriage_details: multi_carriage_details}),
+    do: multi_carriage_details
+
+  def parse_multi_carriage_details(%{"multi_carriage_details" => []} = _input), do: nil
+
+  def parse_multi_carriage_details(%{"multi_carriage_details" => multi_carriage_details}),
+    do: multi_carriage_details
+
+  def parse_multi_carriage_details(_), do: nil
 end

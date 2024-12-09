@@ -2,16 +2,13 @@ defmodule Concentrate.MergeFilter do
   @moduledoc """
   ProducerConsumer which merges the data given to it, filters, and outputs the result.
 
-  We manage the demand from producers manually.
-  * On subscription, we ask for 1 event
-  * Once we've received an event, schedule a timeout for 1s
+  * After receiving an event, schedule a timeout for 1s
   * When the timeout happens, merge and filter the current state
-  * Request new events from producers who were part of the last merge
   """
   use GenStage
   require Logger
   alias Concentrate.Encoder.GTFSRealtimeHelpers
-  alias Concentrate.{Filter, TripDescriptor}
+  alias Concentrate.{FeedUpdate, Filter, TripDescriptor}
   alias Concentrate.Merge.Table
 
   @start_link_opts [:name]
@@ -33,7 +30,7 @@ defmodule Concentrate.MergeFilter do
 
   @impl GenStage
   def init(opts) do
-    filters = Keyword.get(opts, :filters, [])
+    filters = build_filters(Keyword.get(opts, :filters, []))
     group_filters = build_group_filters(Keyword.get(opts, :group_filters, []))
     state = %__MODULE__{filters: filters, group_filters: group_filters}
 
@@ -51,12 +48,6 @@ defmodule Concentrate.MergeFilter do
   end
 
   @impl GenStage
-  def handle_subscribe(:producer, _options, from, state) do
-    state = %{state | table: Table.add(state.table, from), demand: Map.put(state.demand, from, 1)}
-    :ok = GenStage.ask(from, 1)
-    {:manual, state}
-  end
-
   def handle_subscribe(_, _, _, state) do
     {:automatic, state}
   end
@@ -65,8 +56,7 @@ defmodule Concentrate.MergeFilter do
   def handle_cancel(_reason, from, state) do
     state = %{
       state
-      | table: Table.remove(state.table, from),
-        demand: Map.delete(state.demand, from)
+      | table: Table.remove(state.table, from)
     }
 
     {:noreply, [], state}
@@ -74,13 +64,24 @@ defmodule Concentrate.MergeFilter do
 
   @impl GenStage
   def handle_events(events, from, state) do
-    latest_data = List.last(events)
+    {state, updated_keys} =
+      Enum.reduce(events, {state, []}, fn event, {state, updated_keys} ->
+        key = FeedUpdate.url(event) || from
+        updates = FeedUpdate.updates(event)
 
-    state = %{
-      state
-      | table: Table.update(state.table, from, latest_data),
-        demand: Map.update!(state.demand, from, fn demand -> demand - length(events) end)
-    }
+        {table, new_updated_keys} =
+          if FeedUpdate.partial?(event) do
+            {table, new_updated_keys} = Table.partial_update(state.table, key, updates)
+
+            {table, new_updated_keys}
+          else
+            table = Table.update(state.table, key, updates)
+            {table, []}
+          end
+
+        state = %{state | table: table}
+        {state, new_updated_keys ++ updated_keys}
+      end)
 
     state =
       if state.timer do
@@ -89,12 +90,35 @@ defmodule Concentrate.MergeFilter do
         %{state | timer: Process.send_after(self(), :timeout, state.timeout)}
       end
 
-    {:noreply, [], state}
+    events =
+      if updated_keys == [] do
+        []
+      else
+        build_updates(state, updated_keys)
+      end
+
+    {:noreply, events, state}
   end
 
   @impl GenStage
   def handle_info(:timeout, state) do
-    {time, merged} = :timer.tc(&Table.items/1, [state.table])
+    updates = build_updates(state)
+    state = %{state | timer: nil}
+    {:noreply, updates, state}
+  end
+
+  def handle_info(msg, state) do
+    _ =
+      Logger.warning(fn ->
+        "unknown message to #{__MODULE__} #{inspect(self())}: #{inspect(msg)}"
+      end)
+
+    {:noreply, [], state}
+  end
+
+  defp build_updates(state, keys \\ nil) do
+    timestamp = System.system_time(:microsecond) / 1_000_000
+    {time, merged} = :timer.tc(&Table.items/2, [state.table, keys])
 
     _ =
       Logger.debug(fn ->
@@ -122,28 +146,25 @@ defmodule Concentrate.MergeFilter do
         "#{__MODULE__} group_filter time=#{time / 1_000}"
       end)
 
-    state = %{state | timer: nil, demand: ask_demand(state.demand)}
-    {:noreply, [group_filtered], state}
-  end
-
-  def handle_info(msg, state) do
-    _ =
-      Logger.warn(fn ->
-        "unknown message to #{__MODULE__} #{inspect(self())}: #{inspect(msg)}"
-      end)
-
-    {:noreply, [], state}
-  end
-
-  defp ask_demand(demand_map) do
-    for {from, demand} <- demand_map, into: %{} do
-      if demand == 0 do
-        GenStage.ask(from, 1)
-        {from, 1}
-      else
-        {from, demand}
-      end
+    if group_filtered != [] || is_nil(keys) do
+      # there is data, or it's a full update
+      [
+        FeedUpdate.new(
+          updates: group_filtered,
+          timestamp: timestamp,
+          partial?: keys != nil
+        )
+      ]
+    else
+      []
     end
+  end
+
+  defp parse_filter({filter, _opts}), do: filter
+  defp parse_filter(filter), do: filter
+
+  defp build_filters(filters) do
+    Enum.map(filters, &parse_filter/1)
   end
 
   defp build_group_filters(filters) do
@@ -151,6 +172,9 @@ defmodule Concentrate.MergeFilter do
       fun =
         case filter do
           filter when is_atom(filter) ->
+            &filter.filter/1
+
+          {filter, _options} when is_atom(filter) ->
             &filter.filter/1
 
           filter when is_function(filter, 1) ->

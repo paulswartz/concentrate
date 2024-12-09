@@ -4,15 +4,14 @@ defmodule Concentrate.MergeFilterTest do
   use ExUnitProperties
   import ExUnit.CaptureLog, only: [capture_log: 1]
   import Concentrate.MergeFilter
-  alias Concentrate.{Merge, TripDescriptor, VehiclePosition, StopTimeUpdate}
   alias Concentrate.Encoder.GTFSRealtimeHelpers
+  alias Concentrate.{FeedUpdate, Merge, StopTimeUpdate, TripDescriptor, VehiclePosition}
 
   describe "handle_subscribe/4" do
-    test "asks the producer for demand" do
+    test "lets GenStage manage the demand automatically" do
       from = make_from()
       {_, state, _} = init([])
-      {_, _state} = handle_subscribe(:producer, [], from, state)
-      assert_received {:"$gen_producer", ^from, {:ask, 1}}
+      assert {:automatic, _state} = handle_subscribe(:producer, [], from, state)
     end
   end
 
@@ -34,19 +33,129 @@ defmodule Concentrate.MergeFilterTest do
       assert_receive :timeout, 500
       {:noreply, _, state} = handle_info(:timeout, state)
 
+      empty_update = FeedUpdate.new([])
+
       {_, state} = handle_subscribe(:producer, [], from, state)
-      {:noreply, [], state} = handle_events([[], [], []], from, state)
+
+      {:noreply, [], state} =
+        handle_events([empty_update, empty_update, empty_update], from, state)
+
       assert state.timer
       refute_received :timeout
-      {:noreply, [], _state} = handle_events([[], [], []], from, state)
+
+      {:noreply, [], _state} =
+        handle_events([empty_update, empty_update, empty_update], from, state)
+
       assert_receive :timeout, 500
     end
 
+    test "can distinguish events with different FeedUpdate urls" do
+      first =
+        FeedUpdate.new(
+          url: "one",
+          updates: [
+            VehiclePosition.new(id: "one", latitude: 1, longitude: 1)
+          ]
+        )
+
+      second =
+        FeedUpdate.new(
+          url: "two",
+          updates: [
+            VehiclePosition.new(id: "two", latitude: 2, longitude: 2)
+          ]
+        )
+
+      from = make_from()
+      {_, state, _} = init([])
+      {_, state} = handle_subscribe(:producer, [], from, state)
+      {:noreply, [], state} = handle_events([first, second], from, state)
+      assert {:noreply, [update], _state} = handle_info(:timeout, state)
+      assert [{_, [%VehiclePosition{}, %VehiclePosition{}], _}] = FeedUpdate.updates(update)
+    end
+
+    test "can apply partial? updates" do
+      first =
+        FeedUpdate.new(
+          updates: [
+            one = VehiclePosition.new(id: "one", latitude: 1, longitude: 1),
+            VehiclePosition.new(id: "two", latitude: 1, longitude: 1, stop_sequence: 1)
+          ]
+        )
+
+      second =
+        FeedUpdate.new(
+          partial?: true,
+          updates: [
+            two = VehiclePosition.new(id: "two", latitude: 2, longitude: 2)
+          ]
+        )
+
+      from = make_from()
+      {_, state, _} = init([])
+      {_, state} = handle_subscribe(:producer, [], from, state)
+      {:noreply, [partial_update], state} = handle_events([first, second], from, state)
+      assert {:noreply, [full_update], _state} = handle_info(:timeout, state)
+
+      assert FeedUpdate.partial?(partial_update)
+      assert [{nil, [^two], []}] = FeedUpdate.updates(partial_update)
+
+      refute FeedUpdate.partial?(full_update)
+      assert [{nil, merged, []}] = FeedUpdate.updates(full_update)
+      assert [^one, ^two] = Enum.sort_by(merged, &VehiclePosition.id/1)
+    end
+
+    test "partial? updates also include TripDescriptor even if the trip ID wasn't provided" do
+      first =
+        FeedUpdate.new(
+          url: "first",
+          updates: [
+            TripDescriptor.new(trip_id: "trip"),
+            VehiclePosition.new(
+              id: "with_trip",
+              trip_id: "trip",
+              last_updated: DateTime.utc_now(),
+              latitude: 1,
+              longitude: 1,
+              stop_sequence: 1
+            )
+          ]
+        )
+
+      second =
+        FeedUpdate.new(
+          url: "second",
+          partial?: true,
+          updates: [
+            VehiclePosition.new(
+              id: "with_trip",
+              last_updated: DateTime.utc_now(),
+              latitude: 2,
+              longitude: 2
+            )
+          ]
+        )
+
+      from = make_from()
+      {_, state, _} = init([])
+      {_, state} = handle_subscribe(:producer, [], from, state)
+      {:noreply, [partial_update], _state} = handle_events([first, second], from, state)
+
+      assert FeedUpdate.partial?(partial_update)
+      assert [{td, [with_trip], []}] = FeedUpdate.updates(partial_update)
+      assert TripDescriptor.trip_id(td) == "trip"
+      assert VehiclePosition.id(with_trip) == "with_trip"
+      assert VehiclePosition.latitude(with_trip) == 2
+    end
+
     test "runs the events through the filter" do
-      data = [
-        VehiclePosition.new(id: "one", latitude: 1, longitude: 1),
-        expected = VehiclePosition.new(id: "two", trip_id: "trip", latitude: 2, longitude: 2)
-      ]
+      data =
+        FeedUpdate.new(
+          updates: [
+            VehiclePosition.new(id: "one", latitude: 1, longitude: 1),
+            expected = VehiclePosition.new(id: "two", trip_id: "trip", latitude: 2, longitude: 2)
+          ]
+        )
 
       events = [data]
       filters = [Concentrate.Filter.VehicleWithNoTrip]
@@ -54,7 +163,27 @@ defmodule Concentrate.MergeFilterTest do
       {_, state, _} = init(filters: filters)
       {_, state} = handle_subscribe(:producer, [], from, state)
       {:noreply, [], state} = handle_events(events, from, state)
-      assert {:noreply, [[{nil, [^expected], []}]], _state} = handle_info(:timeout, state)
+      assert {:noreply, [update], _state} = handle_info(:timeout, state)
+      assert FeedUpdate.updates(update) == [{nil, [expected], []}]
+    end
+
+    test "runs the events through the filter with options" do
+      data =
+        FeedUpdate.new(
+          updates: [
+            VehiclePosition.new(id: "one", latitude: 1, longitude: 1),
+            expected = VehiclePosition.new(id: "two", trip_id: "trip", latitude: 2, longitude: 2)
+          ]
+        )
+
+      events = [data]
+      filters = [{Concentrate.Filter.VehicleWithNoTrip, options: []}]
+      from = make_from()
+      {_, state, _} = init(filters: filters)
+      {_, state} = handle_subscribe(:producer, [], from, state)
+      {:noreply, [], state} = handle_events(events, from, state)
+      assert {:noreply, [update], _state} = handle_info(:timeout, state)
+      assert FeedUpdate.updates(update) == [{nil, [expected], []}]
     end
 
     test "can filter the grouped data" do
@@ -70,16 +199,19 @@ defmodule Concentrate.MergeFilterTest do
       {_, state, _} = init(group_filters: [__MODULE__.Filter])
       {_, state} = handle_subscribe(:producer, [], from, state)
 
-      data = [
-        trip = TripDescriptor.new(trip_id: "trip"),
-        VehiclePosition.new(trip_id: "trip", latitude: 1, longitude: 1),
-        stu = StopTimeUpdate.new(trip_id: "trip")
-      ]
+      data =
+        FeedUpdate.new(
+          updates: [
+            trip = TripDescriptor.new(trip_id: "trip"),
+            VehiclePosition.new(trip_id: "trip", latitude: 1, longitude: 1),
+            stu = StopTimeUpdate.new(trip_id: "trip")
+          ]
+        )
 
       expected = [{trip, [], [stu]}]
       {:noreply, [], state} = handle_events([data], from, state)
-      {:noreply, events, _state} = handle_info(:timeout, state)
-      assert events == [expected]
+      {:noreply, [update], _state} = handle_info(:timeout, state)
+      assert FeedUpdate.updates(update) == expected
     end
 
     test "removes empty results post-filter" do
@@ -88,15 +220,43 @@ defmodule Concentrate.MergeFilterTest do
       {_, state, _} = init(group_filters: [filter])
       {_, state} = handle_subscribe(:producer, [], from, state)
 
-      data = [
-        TripDescriptor.new(trip_id: "trip"),
-        StopTimeUpdate.new(trip_id: "trip")
-      ]
+      data =
+        FeedUpdate.new(
+          updates: [
+            TripDescriptor.new(trip_id: "trip"),
+            StopTimeUpdate.new(trip_id: "trip")
+          ]
+        )
 
       expected = []
       {:noreply, [], state} = handle_events([data], from, state)
-      {:noreply, events, _state} = handle_info(:timeout, state)
-      assert events == [expected]
+      {:noreply, [update], _state} = handle_info(:timeout, state)
+      assert FeedUpdate.updates(update) == expected
+    end
+
+    test "does not emit empty partial? events" do
+      # such as when they've been filtered out
+      first =
+        FeedUpdate.new(
+          updates: [
+            VehiclePosition.new(id: "one", latitude: 1, longitude: 1)
+          ]
+        )
+
+      second =
+        FeedUpdate.new(
+          partial?: true,
+          updates: [
+            VehiclePosition.new(id: "one", latitude: 2, longitude: 2)
+          ]
+        )
+
+      filters = [Concentrate.Filter.VehicleWithNoTrip]
+      from = make_from()
+      {_, state, _} = init(filters: filters)
+      {_, state} = handle_subscribe(:producer, [], from, state)
+      {:noreply, [], state} = handle_events([first], from, state)
+      assert {:noreply, [], _state} = handle_events([second], from, state)
     end
 
     test "allows a CANCELED TripDescriptor with no StopTimeUpdates" do
@@ -105,14 +265,17 @@ defmodule Concentrate.MergeFilterTest do
       {_, state, _} = init(group_filters: [filter])
       {_, state} = handle_subscribe(:producer, [], from, state)
 
-      data = [
-        trip = TripDescriptor.new(trip_id: "trip", schedule_relationship: :CANCELED)
-      ]
+      data =
+        FeedUpdate.new(
+          updates: [
+            trip = TripDescriptor.new(trip_id: "trip", schedule_relationship: :CANCELED)
+          ]
+        )
 
       expected = [{trip, [], []}]
       {:noreply, [], state} = handle_events([data], from, state)
-      {:noreply, events, _state} = handle_info(:timeout, state)
-      assert events == [expected]
+      {:noreply, [update], _state} = handle_info(:timeout, state)
+      assert FeedUpdate.updates(update) == expected
     end
 
     test "when Logging debug messages, does not crash" do
@@ -123,7 +286,7 @@ defmodule Concentrate.MergeFilterTest do
       end)
 
       Logger.configure(level: :debug)
-      data = []
+      data = FeedUpdate.new([])
 
       events = [data]
       filters = []
@@ -156,26 +319,13 @@ defmodule Concentrate.MergeFilterTest do
           Enum.reduce(multi_source_mergeables, acc, fn mergeables, {_, _, state} ->
             from = make_from()
             {_, state} = handle_subscribe(:producer, [], from, state)
-            handle_events([mergeables], from, state)
+            handle_events([FeedUpdate.new(updates: mergeables)], from, state)
           end)
 
         {:noreply, [actual], _state} = handle_info(:timeout, state)
 
         assert Enum.sort(actual) == Enum.sort(expected)
       end
-    end
-
-    test "asks sources from which we've received data for more" do
-      producer_0 = make_from()
-      producer_1 = make_from()
-      {_, state, _} = init([])
-      {_, state} = handle_subscribe(:producer, [], producer_0, state)
-      {_, state} = handle_subscribe(:producer, [], producer_1, state)
-      clear_mailbox()
-      {:noreply, _, state} = handle_events([[]], producer_0, state)
-      {:noreply, _, _state} = handle_info(:timeout, state)
-      assert_received {:"$gen_producer", ^producer_0, {:ask, 1}}
-      refute_received {:"$gen_producer", ^producer_1, _}
     end
   end
 
@@ -211,14 +361,6 @@ defmodule Concentrate.MergeFilterTest do
         latitude: 1.0,
         longitude: 1.0
       )
-    end
-  end
-
-  defp clear_mailbox do
-    receive do
-      _ -> clear_mailbox()
-    after
-      0 -> :ok
     end
   end
 end

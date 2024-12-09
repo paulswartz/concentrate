@@ -4,21 +4,67 @@ defmodule Concentrate.Parser.GTFSRealtimeEnhanced do
   """
   @behaviour Concentrate.Parser
   require Logger
-  alias Concentrate.{Alert, Alert.InformedEntity, StopTimeUpdate, TripDescriptor, VehiclePosition}
+
+  alias Concentrate.{
+    Alert,
+    Alert.InformedEntity,
+    FeedUpdate,
+    StopTimeUpdate,
+    TripDescriptor,
+    VehiclePosition
+  }
+
   alias Concentrate.Parser.Helpers
   alias VehiclePosition.Consist, as: VehiclePositionConsist
 
   @default_active_period [%{"start" => nil, "end" => nil}]
 
+  @boarding_status_override Application.compile_env(:concentrate, :boarding_status_override, %{})
+
   @impl Concentrate.Parser
   def parse(binary, opts) when is_binary(binary) and is_list(opts) do
     options = Helpers.parse_options(opts)
 
-    for {:ok, json} <- [Jason.decode(binary, strings: :copy)],
-        entities = decode_entities(json, options),
-        decoded <- Helpers.drop_fields(entities, options.drop_fields) do
-      decoded
-    end
+    json = Jason.decode!(binary, strings: :copy)
+
+    feed_timestamp =
+      case json do
+        %{
+          "header" => %{
+            "timestamp" => feed_timestamp
+          }
+        } ->
+          feed_timestamp
+
+        _ ->
+          nil
+      end
+
+    partial? =
+      case json do
+        %{
+          "header" => %{
+            "incrementality" => incrementality
+          }
+        }
+        when incrementality in [1, "DIFFERENTIAL"] ->
+          true
+
+        _ ->
+          false
+      end
+
+    updates =
+      json
+      |> decode_entities(options)
+      |> Helpers.drop_fields(options.drop_fields)
+
+    FeedUpdate.new(
+      updates: updates,
+      url: Keyword.get(opts, :feed_url),
+      timestamp: feed_timestamp,
+      partial?: partial?
+    )
   end
 
   @spec decode_entities(map(), Helpers.Options.t()) :: [any()]
@@ -30,7 +76,11 @@ defmodule Concentrate.Parser.GTFSRealtimeEnhanced do
   end
 
   defp decode_entities(%{"entity" => entities} = json, options) do
-    feed_timestamp = get_in(json, ["header", "timestamp"])
+    %{
+      "header" => %{
+        "timestamp" => feed_timestamp
+      }
+    } = json
 
     for entity <- entities,
         decoded <- decode_feed_entity(entity, options, feed_timestamp) do
@@ -47,7 +97,8 @@ defmodule Concentrate.Parser.GTFSRealtimeEnhanced do
     decode_vehicle(vehicle, options, feed_timestamp)
   end
 
-  defp decode_feed_entity(%{"id" => id, "alert" => %{} = alert}, _options, _feed_timestamp) do
+  defp decode_feed_entity(%{"id" => id, "alert" => %{} = alert}, _options, _feed_timestamp)
+       when not is_map_key(alert, "closed_timestamp") do
     [
       Alert.new(
         id: id,
@@ -63,7 +114,8 @@ defmodule Concentrate.Parser.GTFSRealtimeEnhanced do
     ]
   end
 
-  defp decode_feed_entity(_, _, _) do
+  defp decode_feed_entity(entity, _opts, feed_timestamp) do
+    Logger.warning("event=malformed_entity timestamp=#{feed_timestamp} #{inspect(entity)}")
     []
   end
 
@@ -93,7 +145,10 @@ defmodule Concentrate.Parser.GTFSRealtimeEnhanced do
         stop_updates =
           for stu <- updates do
             {arrival_time, arrival_uncertainty} = time_from_event(Map.get(stu, "arrival"))
+
             {departure_time, departure_uncertainty} = time_from_event(Map.get(stu, "departure"))
+
+            boarding_status = decode_boarding_status(Map.get(stu, "boarding_status"))
 
             StopTimeUpdate.new(
               trip_id:
@@ -103,8 +158,9 @@ defmodule Concentrate.Parser.GTFSRealtimeEnhanced do
               schedule_relationship: schedule_relationship(Map.get(stu, "schedule_relationship")),
               arrival_time: arrival_time,
               departure_time: departure_time,
+              passthrough_time: Map.get(stu, "passthrough_time"),
               uncertainty: arrival_uncertainty || departure_uncertainty,
-              status: Map.get(stu, "boarding_status"),
+              status: boarding_status,
               platform_id: Map.get(stu, "platform_id")
             )
           end
@@ -119,6 +175,14 @@ defmodule Concentrate.Parser.GTFSRealtimeEnhanced do
     else
       td
     end
+  end
+
+  for {status, new_status} <- @boarding_status_override do
+    defp decode_boarding_status(unquote(status)), do: unquote(new_status)
+  end
+
+  defp decode_boarding_status(status) do
+    status
   end
 
   @spec decode_vehicle(map(), Helpers.Options.t(), integer | nil) :: [any()]
@@ -151,7 +215,12 @@ defmodule Concentrate.Parser.GTFSRealtimeEnhanced do
               last_updated: timestamp,
               consist: decode_consist(Map.get(vehicle, "consist")),
               occupancy_status: occupancy_status(Map.get(vp, "occupancy_status")),
-              occupancy_percentage: Map.get(vp, "occupancy_percentage")
+              occupancy_percentage: Map.get(vp, "occupancy_percentage"),
+              multi_carriage_details:
+                VehiclePosition.CarriageDetails.build_multi_carriage_details(
+                  Helpers.parse_multi_carriage_details(vp),
+                  :enhanced
+                )
             )
           ]
         else
@@ -180,7 +249,10 @@ defmodule Concentrate.Parser.GTFSRealtimeEnhanced do
         start_time: Map.get(trip, "start_time"),
         schedule_relationship: schedule_relationship(Map.get(trip, "schedule_relationship")),
         timestamp: Map.get(descriptor, "timestamp"),
-        vehicle_id: vehicle_id
+        revenue: Map.get(trip, "revenue", true),
+        vehicle_id: vehicle_id,
+        last_trip: Map.get(trip, "last_trip", false),
+        update_type: Map.get(descriptor, "update_type")
       )
     ]
   end
@@ -226,7 +298,7 @@ defmodule Concentrate.Parser.GTFSRealtimeEnhanced do
   end
 
   # default
-  defp vehicle_status(nil), do: :IN_TRANSIT_TO
+  defp vehicle_status(nil), do: nil
 
   for status <- ~w(INCOMING_AT STOPPED_AT IN_TRANSIT_TO)a do
     defp vehicle_status(unquote(Atom.to_string(status))), do: unquote(status)
@@ -236,7 +308,8 @@ defmodule Concentrate.Parser.GTFSRealtimeEnhanced do
 
   for status <-
         ~w(EMPTY MANY_SEATS_AVAILABLE FEW_SEATS_AVAILABLE STANDING_ROOM_ONLY
-           CRUSHED_STANDING_ROOM_ONLY FULL NOT_ACCEPTING_PASSENGERS)a do
+           CRUSHED_STANDING_ROOM_ONLY FULL NOT_ACCEPTING_PASSENGERS
+           NO_DATA_AVAILABLE NOT_BOARDABLE)a do
     defp occupancy_status(unquote(Atom.to_string(status))), do: unquote(status)
   end
 

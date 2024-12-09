@@ -5,7 +5,7 @@ defmodule Concentrate.Encoder.TripUpdatesEnhancedTest do
   import Concentrate.Encoder.TripUpdatesEnhanced
   import Concentrate.Encoder.GTFSRealtimeHelpers, only: [group: 1]
   alias Concentrate.Parser.GTFSRealtimeEnhanced
-  alias Concentrate.{TripDescriptor, VehiclePosition, StopTimeUpdate}
+  alias Concentrate.{StopTimeUpdate, TripDescriptor, VehiclePosition}
 
   describe "encode_groups/1" do
     test "decoding and re-encoding TripUpdates_enhanced.json is a no-op" do
@@ -13,7 +13,7 @@ defmodule Concentrate.Encoder.TripUpdatesEnhancedTest do
         GTFSRealtimeEnhanced.parse(File.read!(fixture_path("TripUpdates_enhanced.json")), [])
 
       round_tripped = GTFSRealtimeEnhanced.parse(encode_groups(group(decoded)), [])
-      assert round_tripped == decoded
+      assert Enum.sort(round_tripped) == Enum.sort(decoded)
     end
 
     test "trip updates without a start_time don't have that key" do
@@ -99,7 +99,8 @@ defmodule Concentrate.Encoder.TripUpdatesEnhancedTest do
                  %{
                    "trip_update" => %{
                      "trip" => %{
-                       "route_pattern_id" => "pattern"
+                       "route_pattern_id" => "pattern",
+                       "last_trip" => false
                      }
                    }
                  }
@@ -125,6 +126,173 @@ defmodule Concentrate.Encoder.TripUpdatesEnhancedTest do
                  }
                ]
              } = encoded
+    end
+
+    test "Non-revenue trips are included" do
+      parsed = [
+        TripDescriptor.new(
+          trip_id: "NONREV-trip",
+          route_id: "route",
+          direction_id: 0,
+          revenue: false
+        ),
+        StopTimeUpdate.new(
+          trip_id: "NONREV-trip",
+          stop_id: "stop",
+          schedule_relationship: :SKIPPED
+        )
+      ]
+
+      encoded = Jason.decode!(encode_groups(group(parsed)))
+
+      assert %{
+               "entity" => [
+                 %{
+                   "id" => "NONREV-trip",
+                   "trip_update" => %{
+                     "trip" => %{
+                       "direction_id" => 0,
+                       "revenue" => false,
+                       "route_id" => "route",
+                       "trip_id" => "NONREV-trip",
+                       "last_trip" => false
+                     }
+                   }
+                 }
+               ]
+             } = encoded
+    end
+
+    test "last_trip field is included" do
+      parsed = [
+        TripDescriptor.new(
+          trip_id: "trip",
+          route_id: "route",
+          direction_id: 0,
+          last_trip: true
+        ),
+        StopTimeUpdate.new(
+          trip_id: "trip",
+          stop_id: "stop"
+        )
+      ]
+
+      encoded = Jason.decode!(encode_groups(group(parsed)))
+
+      assert %{
+               "entity" => [
+                 %{
+                   "id" => "trip",
+                   "trip_update" => %{
+                     "trip" => %{
+                       "direction_id" => 0,
+                       "revenue" => true,
+                       "route_id" => "route",
+                       "trip_id" => "trip",
+                       "last_trip" => true
+                     }
+                   }
+                 }
+               ]
+             } = encoded
+    end
+
+    test "moves update_type from trip to trip_update" do
+      parsed = [
+        TripDescriptor.new(trip_id: "trip", update_type: "mid_trip"),
+        StopTimeUpdate.new(trip_id: "trip", stop_id: "stop")
+      ]
+
+      encoded = Jason.decode!(encode_groups(group(parsed)))
+
+      assert %{
+               "entity" => [
+                 %{
+                   "trip_update" => %{
+                     "update_type" => "mid_trip",
+                     "trip" => %{}
+                   }
+                 }
+               ]
+             } = encoded
+
+      trip = get_in(encoded, ["entity", Access.at(0), "trip_update", "trip"])
+      refute trip["update_type"]
+    end
+
+    test "includes passthrough_time" do
+      parsed = [
+        TripDescriptor.new(
+          trip_id: "trip",
+          route_id: "route",
+          direction_id: 0,
+          schedule_relationship: :ADDED,
+          revenue: true
+        ),
+        StopTimeUpdate.new(
+          trip_id: "trip",
+          stop_id: "stop_1",
+          schedule_relationship: :SKIPPED,
+          departure_time: 100,
+          passthrough_time: 100
+        ),
+        StopTimeUpdate.new(
+          trip_id: "trip",
+          stop_id: "stop_2",
+          schedule_relationship: :SKIPPED,
+          arrival_time: 200,
+          departure_time: 250,
+          passthrough_time: 200
+        ),
+        StopTimeUpdate.new(
+          trip_id: "trip",
+          stop_id: "stop_3",
+          arrival_time: 300,
+          departure_time: 400
+        )
+      ]
+
+      encoded = Jason.decode!(encode_groups(group(parsed)))
+
+      assert %{
+               "entity" => [
+                 %{
+                   "id" => "trip",
+                   "trip_update" => %{
+                     "trip" => %{
+                       "direction_id" => 0,
+                       "revenue" => true,
+                       "route_id" => "route",
+                       "trip_id" => "trip",
+                       "last_trip" => false
+                     },
+                     "stop_time_update" => [
+                       %{
+                         "arrival" => %{"time" => 300},
+                         "departure" => %{"time" => 400},
+                         "stop_id" => "stop_3"
+                       } = stu_3,
+                       %{
+                         "passthrough_time" => 200,
+                         "schedule_relationship" => "SKIPPED",
+                         "stop_id" => "stop_2"
+                       } = stu_2,
+                       %{
+                         "passthrough_time" => 100,
+                         "schedule_relationship" => "SKIPPED",
+                         "stop_id" => "stop_1"
+                       } = stu_1
+                     ]
+                   }
+                 }
+               ]
+             } = encoded
+
+      refute Map.get(stu_1, "arrival")
+      refute Map.get(stu_1, "departure")
+      refute Map.get(stu_2, "arrival")
+      refute Map.get(stu_2, "departure")
+      refute Map.get(stu_3, "passthrough_time")
     end
   end
 end

@@ -11,17 +11,53 @@ defmodule Concentrate.Supervisor.Pipeline do
   import Supervisor, only: [child_spec: 2]
 
   def start_link(config) do
-    Supervisor.start_link(children(config), strategy: :rest_for_one)
+    Supervisor.start_link(children(config), strategy: :one_for_all)
   end
 
   def children(config) do
     {source_names, source_children} = sources(config[:sources])
     {output_names, output_children} = encoders(config[:encoders])
-    file_tap = [{Concentrate.Producer.FileTap, config[:file_tap]}]
     merge_filter = merge(source_names, config)
+    source_reporters = source_reporters(source_names, config[:source_reporters])
     reporters = reporters(config[:reporters])
-    sinks = sinks(config[:sinks], [Concentrate.Producer.FileTap] ++ output_names)
-    Enum.concat([source_children, file_tap, merge_filter, output_children, reporters, sinks])
+
+    file_tap =
+      if config[:file_tap][:enabled?] do
+        [Concentrate.Producer.FileTap]
+      else
+        []
+      end
+
+    sinks =
+      case config[:file_tap][:sinks] do
+        nil when file_tap == [] ->
+          [sink(config[:sinks], output_names)]
+
+        nil ->
+          # previous default
+          [sink(config[:sinks], [Concentrate.Producer.FileTap | output_names])]
+
+        file_tap_sink_ids ->
+          {file_tap_sinks, non_file_tap_sinks} = Keyword.split(config[:sinks], file_tap_sink_ids)
+
+          [
+            Supervisor.child_spec(
+              sink(file_tap_sinks, [Concentrate.Producer.FileTap] ++ output_names),
+              id: :file_tap_sinks
+            ),
+            sink(non_file_tap_sinks, output_names)
+          ]
+      end
+
+    Enum.concat([
+      source_children,
+      file_tap,
+      merge_filter,
+      output_children,
+      source_reporters,
+      reporters,
+      sinks
+    ])
   end
 
   def sources(config) do
@@ -53,7 +89,7 @@ defmodule Concentrate.Supervisor.Pipeline do
 
       child_spec(
         {
-          Application.get_env(:concentrate, :http_producer),
+          Concentrate.producer_for_url(url),
           {url, [name: source, parser: parser] ++ opts}
         },
         id: source
@@ -62,13 +98,11 @@ defmodule Concentrate.Supervisor.Pipeline do
   end
 
   def merge(source_names, config) do
-    sources = outputs_with_options(source_names, max_demand: 1)
-
     [
       {
         Concentrate.MergeFilter,
         name: :merge_filter,
-        subscribe_to: sources,
+        subscribe_to: source_names,
         buffer_size: 1,
         filters: Keyword.get(config, :filters, []),
         group_filters: Keyword.get(config, :group_filters, [])
@@ -76,11 +110,20 @@ defmodule Concentrate.Supervisor.Pipeline do
     ]
   end
 
+  def source_reporters(source_names, reporter_modules) when is_list(reporter_modules) do
+    for module <- reporter_modules do
+      child_spec(
+        {Concentrate.SourceReporter.Consumer, module: module, subscribe_to: source_names},
+        id: module
+      )
+    end
+  end
+
   def reporters(reporter_modules) when is_list(reporter_modules) do
     for module <- reporter_modules do
       child_spec(
         {Concentrate.Reporter.Consumer,
-         module: module, subscribe_to: [merge_filter: [max_demand: 1]]},
+         module: module, subscribe_to: [merge_filter: [max_demand: 10]]},
         id: module
       )
     end
@@ -88,14 +131,30 @@ defmodule Concentrate.Supervisor.Pipeline do
 
   def encoders(config) do
     children =
-      for {filename, encoder} <- config[:files] do
+      for encoder_config <- config[:files] || [] do
+        {filename, encoder, opts} =
+          case encoder_config do
+            {filename, encoder} -> {filename, encoder, []}
+            _ -> encoder_config
+          end
+
+        opts =
+          Keyword.replace_lazy(opts, :selector, fn selector ->
+            case selector do
+              {mod, fun, args} -> &apply(mod, fun, [&1 | args])
+              fun when is_function(fun, 1) -> fun
+            end
+          end)
+
         child_spec(
           {
             Concentrate.Encoder.ProducerConsumer,
             name: encoder,
             files: [{filename, encoder}],
-            subscribe_to: [merge_filter: [max_demand: 1]],
-            buffer_size: 1
+            dispatcher: GenStage.BroadcastDispatcher,
+            subscribe_to: [
+              {:merge_filter, opts}
+            ]
           },
           id: encoder
         )
@@ -104,27 +163,16 @@ defmodule Concentrate.Supervisor.Pipeline do
     {child_ids(children), children}
   end
 
-  def sinks(config, output_names) do
-    opts = [subscribe_to: output_names]
+  def sink(config, output_names) do
+    config =
+      for {sink, sink_config} <- config do
+        {sink, sink_config}
+      end
 
-    for {sink_type, sink_config} <- config do
-      child_module = sink_child(sink_type)
-      child_opts = opts ++ sink_config
-
-      {Concentrate.Sink.ConsumerSupervisor, {child_module, child_opts}}
-    end
+    {Concentrate.Sink.Supervisor, config: config, sources: output_names}
   end
-
-  defp sink_child(:filesystem), do: Concentrate.Sink.Filesystem
-  defp sink_child(:s3), do: Concentrate.Sink.S3
 
   defp child_ids(children) do
     for child <- children, do: child.id
-  end
-
-  def outputs_with_options(outputs, options) do
-    for name <- outputs do
-      {name, options}
-    end
   end
 end

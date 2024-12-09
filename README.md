@@ -7,7 +7,7 @@ single output files.
 
 ## Configuration
 
-Concentrate can either be configured via `config/config.exs` or a JSON environment variable as `CONCENTRATE_JSON`: more details are available in [configuration.md](doc/configuration.md).
+Concentrate can either be configured via `config/config.exs` or a JSON environment variable as `CONCENTRATE_JSON`: more details are available in [configuration.md](guides/configuration.md).
 
 ## Architecture
 
@@ -30,6 +30,14 @@ mix format --check-formatted
 mix credo
 mix test
 mix dialyzer
+```
+
+If you run into issues compiling `snabbkaffe`:
+
+``` shell
+rm -fr deps/quicer
+mix deps.get
+mix deps.compile
 ```
 
 ## Docker

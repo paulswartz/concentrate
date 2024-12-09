@@ -10,9 +10,82 @@ defmodule Concentrate.Merge.TableTest do
       check all(mergeables <- TestMergeable.mergeables()) do
         from = :from
         table = new()
-        table = add(table, from)
         table = update(table, from, mergeables)
         assert Enum.sort(items(table)) == Enum.sort(Merge.merge(mergeables))
+      end
+    end
+
+    property "partial updates keep the last seen value for the given Mergeable" do
+      check all(first <- TestMergeable.mergeables(), second <- TestMergeable.mergeables()) do
+        from = :from
+
+        actual =
+          new()
+          |> partial_update(from, first)
+          |> then(fn {table, _} -> partial_update(table, from, second) end)
+          |> then(fn {table, _} -> items(table) end)
+          |> Enum.sort()
+
+        expected =
+          Map.merge(
+            Map.new(first, &{&1.key, &1}),
+            Map.new(second, &{&1.key, &1})
+          )
+          |> Map.values()
+          |> Enum.sort()
+
+        assert expected == actual
+      end
+    end
+
+    property "partial updates return a list of updated keys" do
+      check all(
+              first <- TestMergeable.mergeables(),
+              second <- TestMergeable.mergeables()
+            ) do
+        from = :from
+
+        {table, second_keys} =
+          new()
+          |> partial_update(from, first)
+          |> then(fn {table, _} -> partial_update(table, from, second) end)
+
+        actual = items(table, second_keys)
+
+        expected =
+          Map.merge(
+            Map.new(first, &{&1.key, &1}),
+            Map.new(second, &{&1.key, &1})
+          )
+          # only keep the keys from the second item
+          |> Map.take(Enum.map(second, & &1.key))
+          |> Map.values()
+          |> Enum.sort()
+
+        assert expected == actual
+      end
+    end
+
+    property "updated keys can be used to retrieve only those merges" do
+      check all(
+              first <- TestMergeable.mergeables(),
+              second <- TestMergeable.mergeables()
+            ) do
+        {table, second_table_keys} =
+          new()
+          |> update(:first, first)
+          |> partial_update(:second, second)
+
+        actual = items(table, second_table_keys)
+
+        second_keys = Enum.map(second, & &1.key)
+
+        expected =
+          (first ++ second)
+          |> Enum.filter(&(&1.key in second_keys))
+          |> Merge.merge()
+
+        assert expected == actual
       end
     end
 
@@ -30,7 +103,6 @@ defmodule Concentrate.Merge.TableTest do
         table =
           Enum.reduce(multi_source_mergeables, new(), fn {source, mergeables}, table ->
             table
-            |> add(source)
             |> update(source, mergeables)
           end)
 
@@ -44,7 +116,6 @@ defmodule Concentrate.Merge.TableTest do
       check all(all_mergeables <- list_of_mergeables()) do
         from = :from
         table = new()
-        table = add(table, from)
         expected = List.last(all_mergeables)
 
         table =

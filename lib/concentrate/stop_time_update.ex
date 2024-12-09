@@ -3,13 +3,13 @@ defmodule Concentrate.StopTimeUpdate do
   Structure for representing an update to a StopTime (e.g. a predicted arrival or departure)
   """
   import Concentrate.StructHelpers
-  alias Concentrate.Filter.GTFS.Stops
 
   defstruct_accessors([
     :trip_id,
     :stop_id,
     :arrival_time,
     :departure_time,
+    :passthrough_time,
     :stop_sequence,
     :status,
     :track,
@@ -35,21 +35,29 @@ defmodule Concentrate.StopTimeUpdate do
     %{stu | schedule_relationship: :SKIPPED, arrival_time: nil, departure_time: nil, status: nil}
   end
 
-  defimpl Concentrate.Mergeable do
-    def key(%{trip_id: trip_id, stop_id: stop_id, stop_sequence: stop_sequence}) do
-      parent_station_id =
-        if stop_id do
-          Stops.parent_station_id(stop_id)
-        end
+  @spec skipped?(%__MODULE__{}) :: boolean()
+  def skipped?(%__MODULE__{schedule_relationship: schedule_relationship}) do
+    schedule_relationship == :SKIPPED
+  end
 
-      {trip_id, parent_station_id, stop_sequence}
-    end
+  defimpl Concentrate.Mergeable do
+    require Logger
+
+    def key(%{trip_id: trip_id, stop_sequence: stop_sequence}), do: {trip_id, stop_sequence}
+
+    def related_keys(_), do: []
 
     def merge(first, second) do
+      time_stu =
+        if Concentrate.StopTimeUpdate.time(first) <= Concentrate.StopTimeUpdate.time(second),
+          do: first,
+          else: second
+
       %{
         first
-        | arrival_time: time(:lt, first.arrival_time, second.arrival_time),
-          departure_time: time(:gt, first.departure_time, second.departure_time),
+        | arrival_time: time_stu.arrival_time,
+          departure_time: time_stu.departure_time,
+          passthrough_time: first.passthrough_time || second.passthrough_time,
           status: first.status || second.status,
           track: first.track || second.track,
           schedule_relationship:
@@ -63,12 +71,5 @@ defmodule Concentrate.StopTimeUpdate do
           uncertainty: first.uncertainty || second.uncertainty
       }
     end
-
-    defp time(_, nil, time), do: time
-    defp time(_, time, nil), do: time
-    defp time(_, time, time), do: time
-    defp time(:lt, first, second) when first < second, do: first
-    defp time(:gt, first, second) when first > second, do: first
-    defp time(_, _, second), do: second
   end
 end
